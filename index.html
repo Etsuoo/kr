@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ソウル仕入れ伝票</title>
+<meta name="theme-color" content="#1f2a44">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="仕入れ伝票">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=BIZ+UDGothic:wght@400;700&display=swap">
+<style>
+/* Layout: a pad of carbon-copy purchase slips. Header = slip pad cover with budget meter; want list = buyer's order sheet; each purchase = one torn-off slip. */
+:root{
+  --paper:#eef2f6;        /* 複写伝票の青み */
+  --sheet:#ffffff;
+  --ink:#1f2a44;          /* 藍インク */
+  --ink-soft:#5b6680;
+  --rule:#c9d3e0;
+  --stamp:#c8323c;        /* 検印の朱 */
+  --stamp-bg:#fbe9ea;
+  --ok:#2f7a55;
+  --font-display:"Dela Gothic One","Zen Kaku Gothic New",system-ui,sans-serif;
+  --font-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --font-data:"BIZ UDGothic","Zen Kaku Gothic New",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#141a26;--sheet:#1c2433;--ink:#e3e8f2;--ink-soft:#97a2ba;--rule:#334058;
+  --stamp:#ff6b72;--stamp-bg:#3a1f25;--ok:#6fd0a0;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#141a26;--sheet:#1c2433;--ink:#e3e8f2;--ink-soft:#97a2ba;--rule:#334058;
+  --stamp:#ff6b72;--stamp-bg:#3a1f25;--ok:#6fd0a0;color-scheme:dark}
+
+body{background:var(--paper);color:var(--ink);font-family:var(--font-body);line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:calc(20px + env(safe-area-inset-top,0px)) calc(48px + env(safe-area-inset-bottom,0px));margin:0;font-size:14px;-webkit-text-size-adjust:100%}
+*,*::before,*::after{box-sizing:border-box}
+img{max-width:100%}
+[hidden]{display:none!important}
+.wrap{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--stamp);outline-offset:2px}
+
+/* cover */
+.cover{background:var(--sheet);border:1.5px solid var(--ink);border-radius:4px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:14px}
+.cover-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.eyebrow{font-size:11px;letter-spacing:.18em;color:var(--ink-soft)}
+h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px);line-height:1.15;margin:2px 0 0;text-wrap:balance}
+.shopname{font-weight:700;font-size:15px;margin-top:4px;word-break:break-word}
+.shopname .ph{color:var(--ink-soft);font-weight:400}
+.iconbtn{border:1px solid var(--rule);background:transparent;border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
+.meter{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px dashed var(--rule);padding-top:12px;gap:8px}
+.meter div{min-width:0}
+.meter .lbl{font-size:11px;color:var(--ink-soft);letter-spacing:.08em}
+.meter .val{font-family:var(--font-data);font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.meter .sub{font-family:var(--font-data);font-size:11px;color:var(--ink-soft)}
+.val.over{color:var(--stamp)}
+.bar{height:6px;background:var(--paper);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ink);width:0;transition:width .3s}
+.bar i.over{background:var(--stamp)}
+.cats{display:flex;flex-wrap:wrap;gap:6px}
+.cats span{font-size:12px;border:1px solid var(--rule);border-radius:999px;padding:2px 10px;font-family:var(--font-data)}
+
+/* settings */
+.settings{display:grid;gap:10px;border-top:1px dashed var(--rule);padding-top:12px}
+.backup{display:grid;gap:6px;border-top:1px dashed var(--rule);padding-top:12px;font-size:13px}
+.backup p{margin:0}
+.backup .lbl{font-size:11px;color:var(--ink-soft);letter-spacing:.08em}
+.backup .sub{font-family:var(--font-data);font-size:12px;color:var(--ink-soft)}
+.backup .actions{justify-content:flex-start}
+.backup label.btn{display:inline-block}
+.confirm{display:grid;gap:8px;border:1.5px solid var(--stamp);background:var(--stamp-bg);border-radius:4px;padding:10px 12px}
+.hint{font-size:12px;color:var(--stamp);margin:0}
+.hint[data-ok]{color:var(--ink-soft)}
+
+/* want list (発注書) */
+.wants{background:var(--sheet);border:1.5px dashed var(--ink);border-radius:4px}
+.wants summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:12px 16px}
+.wants summary::-webkit-details-marker{display:none}
+.wants summary b{font-family:var(--font-display);font-weight:400;font-size:16px;letter-spacing:.06em}
+.wants summary span{font-family:var(--font-data);font-size:12px;color:var(--ink-soft);white-space:nowrap}
+.wants summary span::after{content:" ▾"}
+.wants:not([open]) summary span::after{content:" ▸"}
+.wants-body{padding:0 16px 16px;display:grid;gap:14px}
+.wgroup{display:grid;gap:2px}
+.wgroup h3{font-size:11px;letter-spacing:.14em;color:var(--ink-soft);margin:0 0 2px;font-weight:700;border-bottom:1px solid var(--rule);padding-bottom:2px}
+.witem{display:flex;align-items:center;gap:10px;min-height:36px}
+.witem label{flex:1;min-width:0;display:flex;align-items:center;gap:10px;cursor:pointer;overflow-wrap:anywhere}
+.witem input{appearance:none;-webkit-appearance:none;width:20px;height:20px;flex:none;margin:0;border:1.5px solid var(--ink);border-radius:2px;display:grid;place-items:center;cursor:pointer;background:transparent}
+.witem input:checked{border-color:var(--stamp);background:var(--stamp-bg)}
+.witem input:checked::after{content:"済";font-family:var(--font-display);font-size:11px;color:var(--stamp);line-height:1}
+.witem.done label span{text-decoration:line-through;color:var(--ink-soft)}
+.witem .wdel{border:none;background:transparent;color:var(--ink-soft);font-size:16px;cursor:pointer;padding:4px 6px;line-height:1}
+.wadd{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:end;border-top:1px dashed var(--rule);padding-top:12px}
+.wadd input,.wadd select{border:none;border-bottom:1.5px solid var(--rule);background:transparent;padding:6px 2px;font-size:16px;border-radius:0;min-width:0}
+.wadd input:focus,.wadd select:focus{border-bottom-color:var(--ink);outline:none}
+.wadd .btn{padding:6px 12px}
+.wempty{font-size:13px;color:var(--ink-soft)}
+
+/* form */
+.form{background:var(--sheet);border:1.5px solid var(--ink);border-radius:4px;overflow:hidden}
+.form-head{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:var(--ink);color:var(--sheet)}
+.form-head b{font-family:var(--font-display);font-weight:400;font-size:16px;letter-spacing:.06em}
+.form-head span{font-family:var(--font-data);font-size:12px}
+.form-body{padding:16px;display:grid;gap:12px}
+.field{display:grid;gap:4px;min-width:0}
+.field label{font-size:12px;color:var(--ink-soft);letter-spacing:.06em}
+.field input,.field select,.field textarea{width:100%;box-sizing:border-box;border:none;border-bottom:1.5px solid var(--rule);background:transparent;padding:6px 2px;font-size:16px;border-radius:0}
+.field input:focus,.field select:focus,.field textarea:focus{border-bottom-color:var(--ink);outline:none}
+.field textarea{resize:vertical;min-height:44px}
+.row2{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:12px}
+.price-wrap{display:flex;align-items:baseline;gap:4px}
+.price-wrap span{font-family:var(--font-data);font-weight:700}
+.price-wrap input{font-family:var(--font-data);font-variant-numeric:tabular-nums}
+.photo-pick{display:flex;gap:12px;align-items:center}
+.photo-box{width:88px;height:88px;flex:none;border:1.5px dashed var(--rule);border-radius:4px;display:grid;place-items:center;overflow:hidden;background:var(--paper);font-size:11px;color:var(--ink-soft);text-align:center;line-height:1.3}
+.photo-box img{width:100%;height:100%;object-fit:cover}
+.photo-pick input[type=file]{position:absolute;width:1px;height:1px;opacity:0}
+.btn{border:1.5px solid var(--ink);background:transparent;border-radius:4px;padding:10px 16px;font-weight:700;cursor:pointer}
+.btn.primary{background:var(--ink);color:var(--sheet)}
+.btn:disabled{opacity:.5;cursor:default}
+.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.msg{font-size:13px;color:var(--stamp);min-height:1em}
+.msg.ok{color:var(--ok)}
+.pic .noimg{padding:4px;text-align:center;line-height:1.3}
+
+/* list */
+.list-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:0 2px}
+.list-head h2{font-size:15px;margin:0;letter-spacing:.08em}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--rule);background:transparent;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--sheet);border-color:var(--ink)}
+.slips{display:flex;flex-direction:column;gap:12px}
+.slip{position:relative;background:var(--sheet);border-radius:3px;display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;padding:14px;
+  border-left:1px solid var(--rule);border-right:1px solid var(--rule);
+  -webkit-mask:radial-gradient(circle 5px at 50% 0,#0000 98%,#000) 0 0/14px 51% repeat-x,radial-gradient(circle 5px at 50% 100%,#0000 98%,#000) 0 100%/14px 51% repeat-x;
+          mask:radial-gradient(circle 5px at 50% 0,#0000 98%,#000) 0 0/14px 51% repeat-x,radial-gradient(circle 5px at 50% 100%,#0000 98%,#000) 0 100%/14px 51% repeat-x}
+.slip .pic{width:96px;height:120px;border-radius:2px;overflow:hidden;background:var(--paper);display:grid;place-items:center;font-size:11px;color:var(--ink-soft)}
+.slip .pic img{width:100%;height:100%;object-fit:cover}
+.slip .body{min-width:0;display:flex;flex-direction:column;gap:2px}
+.slip .no{font-family:var(--font-data);font-size:11px;color:var(--ink-soft);display:flex;gap:8px;flex-wrap:wrap}
+.slip .item{font-weight:700;font-size:16px;line-height:1.35;overflow-wrap:anywhere}
+.slip .shop{font-size:13px;color:var(--ink-soft);overflow-wrap:anywhere}
+.slip .price{font-family:var(--font-data);font-weight:700;font-size:18px;font-variant-numeric:tabular-nums;margin-top:auto}
+.slip .price small{font-weight:400;font-size:12px;color:var(--ink-soft);margin-left:6px}
+.slip .pop{font-size:13px;border-left:2px solid var(--stamp);padding-left:8px;margin:4px 0;overflow-wrap:anywhere}
+.slip .ops{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.slip .ops button{border:none;background:transparent;font-size:12px;color:var(--ink-soft);text-decoration:underline;cursor:pointer;padding:2px 0}
+.slip .ops .danger{color:var(--stamp)}
+.stamp{position:absolute;top:10px;right:12px;width:46px;height:46px;border:2px solid var(--stamp);color:var(--stamp);border-radius:50%;display:grid;place-items:center;
+  font-family:var(--font-display);font-size:13px;transform:rotate(-12deg);opacity:.85;background:var(--stamp-bg)}
+.empty{border:1.5px dashed var(--rule);border-radius:4px;padding:28px 18px;text-align:center;color:var(--ink-soft);font-size:14px}
+.empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+.notice{font-size:13px;color:var(--ink-soft);text-align:center}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+@media (max-width:380px){.slip{grid-template-columns:76px minmax(0,1fr)}.slip .pic{width:76px;height:96px}.row2{grid-template-columns:1fr}.wadd{grid-template-columns:minmax(0,1fr) auto}.wadd .btn{grid-column:1/-1}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <section class="cover" aria-label="仕入れの概要">
+    <div class="cover-top">
+      <div>
+        <div class="eyebrow">BUYING TRIP · SEOUL</div>
+        <h1>仕入れ伝票</h1>
+        <div class="shopname" id="shopLine"><span class="ph">店名未設定</span></div>
+      </div>
+      <button class="iconbtn" id="toggleSettings" type="button" aria-expanded="false">設定</button>
+    </div>
+    <div class="settings" id="settings" hidden>
+      <div class="field"><label for="setShop">お店の名前</label><input id="setShop" maxlength="40" placeholder="例:ODD SHELF"></div>
+      <div class="row2">
+        <div class="field"><label for="setBudget">仕入れ予算(₩)</label><input id="setBudget" inputmode="numeric" placeholder="例:1,500,000"></div>
+        <div class="field"><label for="setRate">₩100 = 何円?</label><input id="setRate" inputmode="decimal" placeholder="例:11"></div>
+      </div>
+      <div class="actions"><button class="btn primary" id="saveSettings" type="button">設定を保存</button></div>
+      <div class="backup">
+        <div class="lbl">データの保存場所</div>
+        <p>伝票・写真・買付リストは、この端末のブラウザの中だけに保存されます。ネットには上がりません。消えたときのために、ときどき「書き出し」でバックアップしてください。</p>
+        <p class="sub" id="lastBackup">まだ書き出していません</p>
+        <div class="actions">
+          <button class="btn" id="exportBtn" type="button">書き出し</button>
+          <label class="btn" for="importFile">読み込み</label>
+          <input type="file" id="importFile" accept="application/json,.json" hidden>
+        </div>
+        <div class="confirm" id="importConfirm" hidden>
+          <span id="importText"></span>
+          <div class="actions"><button class="btn" id="importCancel" type="button">やめる</button><button class="btn primary" id="importOk" type="button">置き換えて読み込む</button></div>
+        </div>
+        <div class="msg" id="backupMsg" role="status"></div>
+      </div>
+    </div>
+    <div class="meter">
+      <div><div class="lbl">仕入れ合計</div><div class="val" id="mTotal">₩0</div><div class="sub" id="mTotalY"></div></div>
+      <div><div class="lbl">予算</div><div class="val" id="mBudget">—</div><div class="sub" id="mBudgetY"></div></div>
+      <div><div class="lbl">残り</div><div class="val" id="mLeft">—</div><div class="sub" id="mLeftY"></div></div>
+    </div>
+    <div class="bar" aria-hidden="true"><i id="mBar"></i></div>
+    <div class="cats" id="mCats"></div>
+    <p class="hint" id="backupHint" hidden></p>
+  </section>
+
+  <details class="wants" id="wants" open>
+    <summary><b>買付リスト</b><span id="wCount">0 / 0</span></summary>
+    <div class="wants-body">
+      <div id="wList"><p class="wempty">買付リストを読み込み中です。下の欄からほしいものを追加できます。</p></div>
+      <form class="wadd" id="wForm" novalidate>
+        <input id="wName" maxlength="60" placeholder="ほしいものを追加" aria-label="ほしいもの">
+        <select id="wGroup" aria-label="分類"><option>アイウェア</option><option>バッグ</option><option>アクセ</option><option>靴</option><option selected>服</option><option>その他</option></select>
+        <button class="btn" type="submit" id="wAddBtn">追加</button>
+      </form>
+    </div>
+  </details>
+
+  <form class="form" id="form" novalidate>
+    <div class="form-head"><b id="formTitle">新規伝票</b><span id="formNo">No. 001</span></div>
+    <div class="form-body">
+      <div class="photo-pick">
+        <label class="photo-box" for="fPhoto" id="photoBox">写真を<br>選ぶ</label>
+        <input type="file" id="fPhoto" accept="image/*">
+        <div class="field" style="flex:1">
+          <label for="fItem">アイテム名</label>
+          <input id="fItem" maxlength="80" placeholder="例:ボクシーなウールジャケット" required>
+        </div>
+      </div>
+      <div class="field"><label for="fShop">場所・お店</label><input id="fShop" maxlength="80" placeholder="例:聖水洞 / ADER error"></div>
+      <div class="row2">
+        <div class="field"><label for="fPrice">金額</label><div class="price-wrap"><span>₩</span><input id="fPrice" inputmode="numeric" placeholder="89,000"></div></div>
+        <div class="field"><label for="fCat">カテゴリ</label>
+          <select id="fCat"><option>服</option><option>靴</option><option>アクセ</option><option>バッグ</option><option>その他</option></select></div>
+      </div>
+      <div class="field"><label for="fPop">店頭POPの一言(なぜ選んだか)</label><textarea id="fPop" maxlength="140" rows="2" placeholder="例:肩の落ち方が今季いちばん"></textarea></div>
+      <div class="msg" id="formMsg" role="status"></div>
+      <div class="actions">
+        <button class="btn" type="button" id="cancelEdit" hidden>キャンセル</button>
+        <button class="btn primary" type="submit" id="submitBtn">伝票に記入</button>
+      </div>
+    </div>
+  </form>
+
+  <section aria-label="伝票一覧" style="display:flex;flex-direction:column;gap:10px">
+    <div class="list-head"><h2 id="listCount">伝票 0枚</h2>
+      <div class="filters" id="filters"></div></div>
+    <div class="slips" id="slips">
+      <div class="empty"><b>まだ伝票がありません</b>上のフォームで写真・お店・アイテム名・金額を入れると、ここに1枚ずつ伝票が並びます。</div>
+    </div>
+  </section>
+  <p class="notice" id="notice" hidden></p>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const CATS = ["服","靴","アクセ","バッグ","その他"];
+  const WGROUPS = ["アイウェア","バッグ","アクセ","靴","服","その他"];
+  const SEED_WANTS = [
+    ["メガネ","アイウェア"],["サングラス","アイウェア"],
+    ["ボストンバッグ","バッグ"],["トートバッグ","バッグ"],
+    ["指輪","アクセ"],["ネックレス","アクセ"],
+    ["厚底ブーツ(黒・シンプル)","靴"],["とんがり系ブーツ(柄あり)","靴"],["ムートンブーツ","靴"],["ムートンスリッポン","靴"],
+    ["レザージャケット(秋冬)","服"],["もふもふアウター","服"],["長袖の羽織(シンプルなチェック)","服"],
+    ["ブーツに合うきれいめワンピース","服"],["プリーツスカート","服"],["パジャマ","服"]
+  ];
+  let slips=[], wants=[], settings={shop:"",budget:0,rate:0}, meta={};
+  let editingId=null, pendingBlob=null, pendingPreview=null, filter="すべて", pendingImport=null;
+  const photoUrls = {};
+
+  const won = n => "₩" + Math.round(n||0).toLocaleString("ja-JP");
+  const yen = n => settings.rate>0 ? "約¥" + Math.round(n*settings.rate/100).toLocaleString("ja-JP") : "";
+  const num = s => { const v = parseInt(String(s||"").replace(/[^\d]/g,""),10); return isNaN(v)?0:v; };
+  const pad = n => String(n).padStart(3,"0");
+  const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const fmtDate = t => { const d=new Date(t); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+
+  function notice(t){ const n=$("notice"); n.textContent=t; n.hidden=!t; }
+
+  // ---- storage: IndexedDB on this device ----
+  const STORES = ["slips","wants","kv","photos"];
+  let idb = null;
+  function openDB(){
+    return new Promise((res,rej)=>{
+      const r = indexedDB.open("kaitsuke-denpyo", 1);
+      r.onupgradeneeded = () => {
+        const d=r.result;
+        d.createObjectStore("slips",{keyPath:"id"});
+        d.createObjectStore("wants",{keyPath:"id"});
+        d.createObjectStore("kv");
+        d.createObjectStore("photos");
+      };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+  }
+  function tx(stores, mode, fn){
+    return new Promise((res,rej)=>{
+      const t = idb.transaction(stores, mode); let out;
+      Promise.resolve(fn(t)).then(v=>{ out=v; });
+      t.oncomplete = () => res(out);
+      t.onerror = () => rej(t.error);
+      t.onabort = () => rej(t.error || new Error("abort"));
+    });
+  }
+  const req = r => new Promise((res,rej)=>{ r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); });
+  const getAll = store => tx([store],"readonly",t=>req(t.objectStore(store).getAll()));
+  const getKV = key => tx(["kv"],"readonly",t=>req(t.objectStore("kv").get(key)));
+  const putKV = (key,val) => tx(["kv"],"readwrite",t=>{ t.objectStore("kv").put(val,key); });
+  const putRow = (store,row) => tx([store],"readwrite",t=>{ t.objectStore(store).put(row); });
+  const delRow = (store,id) => tx([store],"readwrite",t=>{ t.objectStore(store).delete(id); });
+  const getPhoto = id => tx(["photos"],"readonly",t=>req(t.objectStore("photos").get(id)));
+
+  async function loadAll(){
+    const [s,w,st,m] = await Promise.all([getAll("slips"),getAll("wants"),getKV("settings"),getKV("meta")]);
+    slips = s.sort((a,b)=>b.createdAt-a.createdAt);
+    wants = w.sort((a,b)=>(a.order||0)-(b.order||0));
+    if(st) settings = {shop:st.shop||"",budget:st.budget||0,rate:st.rate||0};
+    meta = m || {};
+    await Promise.all(slips.filter(x=>x.photoId && !photoUrls[x.photoId]).map(async x=>{
+      const b = await getPhoto(x.photoId); if(b) photoUrls[x.photoId]=URL.createObjectURL(b);
+    }));
+    render(); renderWants(); renderBackup();
+  }
+
+  // ---- want list ----
+  function renderWants(){
+    const done = wants.filter(w=>w.done).length;
+    $("wCount").textContent = `${done} / ${wants.length} 済`;
+    if(!wants.length){
+      $("wList").innerHTML = `<p class="wempty">まだ何もありません。下の欄からほしいものを追加してください。</p>`;
+      return;
+    }
+    const groups = [...WGROUPS, ...new Set(wants.map(w=>w.group).filter(g=>!WGROUPS.includes(g)))];
+    $("wList").innerHTML = groups.map(g=>{
+      const items = wants.filter(w=>(w.group||"その他")===g);
+      if(!items.length) return "";
+      return `<div class="wgroup"><h3>${esc(g)}</h3>${items.map(w=>`
+        <div class="witem${w.done?" done":""}">
+          <label><input type="checkbox" data-wid="${esc(w.id)}" ${w.done?"checked":""}><span>${esc(w.name)}</span></label>
+          <button type="button" class="wdel" data-wdel="${esc(w.id)}" aria-label="${esc(w.name)}を削除">×</button>
+        </div>`).join("")}</div>`;
+    }).join("");
+  }
+  $("wList").addEventListener("change", async e=>{
+    const cb=e.target.closest("input[data-wid]"); if(!cb) return;
+    const w=wants.find(x=>x.id===cb.dataset.wid); if(!w) return;
+    try{ await putRow("wants",{...w,done:cb.checked}); await loadAll(); }
+    catch(_){ cb.checked=!cb.checked; notice("チェックを保存できませんでした。もう一度試してください。"); }
+  });
+  $("wList").addEventListener("click", async e=>{
+    const b=e.target.closest("[data-wdel]"); if(!b) return;
+    if(b.dataset.confirm!=="1"){ b.dataset.confirm="1"; b.textContent="削除"; b.style.fontSize="12px"; b.style.color="var(--stamp)"; return; }
+    try{ await delRow("wants",b.dataset.wdel); await loadAll(); }catch(_){ notice("削除できませんでした。もう一度試してください。"); }
+  });
+  $("wForm").addEventListener("submit", async e=>{
+    e.preventDefault();
+    const name=$("wName").value.trim(); if(!name){ $("wName").focus(); return; }
+    const order = wants.reduce((m,w)=>Math.max(m,w.order||0),0)+10;
+    try{ await putRow("wants",{id:newId(), name, group:$("wGroup").value, done:false, order}); $("wName").value=""; await loadAll(); }
+    catch(_){ notice("追加できませんでした。もう一度試してください。"); }
+  });
+
+  // ---- cover / list ----
+  function renderCover(){
+    $("shopLine").innerHTML = settings.shop ? esc(settings.shop)+" バイヤー" : '<span class="ph">店名未設定(設定から入力)</span>';
+    const total = slips.reduce((a,s)=>a+(s.price||0),0);
+    $("mTotal").textContent = won(total); $("mTotalY").textContent = yen(total);
+    if(settings.budget>0){
+      const left = settings.budget-total;
+      $("mBudget").textContent = won(settings.budget); $("mBudgetY").textContent = yen(settings.budget);
+      $("mLeft").textContent = (left<0?"−":"") + won(Math.abs(left)); $("mLeftY").textContent = yen(Math.abs(left));
+      $("mLeft").classList.toggle("over", left<0);
+      const pct = Math.min(100, total/settings.budget*100);
+      $("mBar").style.width = pct+"%"; $("mBar").classList.toggle("over", left<0);
+    } else {
+      $("mBudget").textContent="—"; $("mBudgetY").textContent=""; $("mLeft").textContent="—"; $("mLeftY").textContent=""; $("mBar").style.width="0";
+    }
+    const by = {}; slips.forEach(s=>{ by[s.cat]=(by[s.cat]||0)+(s.price||0); });
+    $("mCats").innerHTML = CATS.filter(c=>by[c]).map(c=>`<span>${c} ${won(by[c])}</span>`).join("");
+  }
+
+  function renderFilters(){
+    const present = ["すべて", ...CATS.filter(c=>slips.some(s=>s.cat===c))];
+    if(!present.includes(filter)) filter="すべて";
+    $("filters").innerHTML = present.length>2 ? present.map(c=>`<button type="button" class="chip" data-f="${c}" aria-pressed="${c===filter}">${c}</button>`).join("") : "";
+  }
+
+  function renderList(){
+    $("listCount").textContent = `伝票 ${slips.length}枚`;
+    renderFilters();
+    const shown = slips.filter(s=>filter==="すべて"||s.cat===filter);
+    if(!slips.length){
+      $("slips").innerHTML = '<div class="empty"><b>まだ伝票がありません</b>上のフォームで写真・お店・アイテム名・金額を入れると、ここに1枚ずつ伝票が並びます。</div>';
+      return;
+    }
+    $("slips").innerHTML = shown.map(s=>`
+      <article class="slip" data-id="${esc(s.id)}">
+        <div class="pic">${s.photoId && photoUrls[s.photoId]?`<img src="${photoUrls[s.photoId]}" alt="${esc(s.item)}">`:"写真なし"}</div>
+        <div class="body">
+          <div class="no"><span>No. ${pad(s.no)}</span><span>${esc(s.cat)}</span><span>${fmtDate(s.createdAt)}</span></div>
+          <div class="item">${esc(s.item)}</div>
+          ${s.shop?`<div class="shop">${esc(s.shop)}</div>`:""}
+          ${s.pop?`<div class="pop">${esc(s.pop)}</div>`:""}
+          <div class="price">${won(s.price)}<small>${yen(s.price)}</small></div>
+          <div class="ops" data-ops="${esc(s.id)}">
+            <button type="button" data-act="edit">修正</button>
+            <button type="button" data-act="del" class="danger">削除</button>
+          </div>
+        </div>
+        <div class="stamp" aria-label="検品済">検品</div>
+      </article>`).join("");
+  }
+
+  function render(){ renderCover(); renderList(); resetNo(); }
+  function nextNo(){ return slips.reduce((m,s)=>Math.max(m,s.no||0),0)+1; }
+  function resetNo(){ if(!editingId) $("formNo").textContent = "No. "+pad(nextNo()); }
+
+  // ---- photo: shrink before saving ----
+  function shrink(file){
+    return new Promise((res,rej)=>{
+      const url = URL.createObjectURL(file); const img = new Image();
+      img.onload=()=>{ const max=1280; let {width:w,height:h}=img; const k=Math.min(1,max/Math.max(w,h));
+        const c=document.createElement("canvas"); c.width=Math.round(w*k); c.height=Math.round(h*k);
+        c.getContext("2d").drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url);
+        c.toBlob(b=>b?res(b):rej(new Error("変換失敗")),"image/jpeg",0.82); };
+      img.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error("画像を読めませんでした")); };
+      img.src=url;
+    });
+  }
+  $("fPhoto").addEventListener("change", async e=>{
+    const f=e.target.files&&e.target.files[0]; if(!f) return;
+    $("formMsg").textContent="";
+    try{ pendingBlob = await shrink(f); }catch(err){ pendingBlob=f; }
+    if(pendingPreview) URL.revokeObjectURL(pendingPreview);
+    pendingPreview = URL.createObjectURL(pendingBlob);
+    $("photoBox").innerHTML = `<img src="${pendingPreview}" alt="選んだ写真">`;
+  });
+
+  function clearForm(){
+    editingId=null; pendingBlob=null;
+    if(pendingPreview){ URL.revokeObjectURL(pendingPreview); pendingPreview=null; }
+    ["fItem","fShop","fPrice","fPop"].forEach(id=>$(id).value=""); $("fPhoto").value="";
+    $("photoBox").innerHTML="写真を<br>選ぶ"; $("formTitle").textContent="新規伝票";
+    $("submitBtn").textContent="伝票に記入"; $("cancelEdit").hidden=true; resetNo();
+  }
+  $("cancelEdit").addEventListener("click", clearForm);
+  $("fPrice").addEventListener("blur", ()=>{ const v=num($("fPrice").value); $("fPrice").value = v? v.toLocaleString("ja-JP"):""; });
+
+  $("form").addEventListener("submit", async e=>{
+    e.preventDefault();
+    const item=$("fItem").value.trim();
+    if(!item){ $("formMsg").textContent="アイテム名を入れてください。"; $("fItem").focus(); return; }
+    const btn=$("submitBtn"); btn.disabled=true; $("formMsg").textContent=""; $("formMsg").classList.remove("ok");
+    try{
+      const prev = editingId ? slips.find(s=>s.id===editingId) : null;
+      let photoId = prev ? prev.photoId||"" : "";
+      const oldPhoto = photoId;
+      if(pendingBlob) photoId = newId();
+      const row = { id: prev?prev.id:newId(), item, shop:$("fShop").value.trim(), price:num($("fPrice").value), cat:$("fCat").value,
+        pop:$("fPop").value.trim(), photoId, no: prev?prev.no:nextNo(), createdAt: prev?prev.createdAt:Date.now() };
+      const blob = pendingBlob;
+      await tx(["slips","photos"],"readwrite",t=>{
+        if(blob){ t.objectStore("photos").put(blob, photoId); if(oldPhoto) t.objectStore("photos").delete(oldPhoto); }
+        t.objectStore("slips").put(row);
+      });
+      if(blob){ photoUrls[photoId]=URL.createObjectURL(blob); }
+      clearForm(); await loadAll();
+      $("formMsg").classList.add("ok"); $("formMsg").textContent = photoId ? "写真付きで保存しました" : "保存しました";
+      setTimeout(()=>{ $("formMsg").classList.remove("ok"); if($("formMsg").textContent.endsWith("保存しました")) $("formMsg").textContent=""; }, 4000);
+    }catch(err){
+      $("formMsg").textContent = err && err.name==="QuotaExceededError" ? "端末の保存容量が足りません。不要な伝票を削除するか、書き出してから整理してください。" : "保存できませんでした。もう一度試してください。";
+    }finally{ btn.disabled=false; btn.textContent = editingId ? "修正を保存" : "伝票に記入"; }
+  });
+
+  $("slips").addEventListener("click", async e=>{
+    const b=e.target.closest("button[data-act]"); if(!b) return;
+    const ops=b.closest("[data-ops]"); const id=ops.dataset.ops; const s=slips.find(x=>x.id===id); if(!s) return;
+    if(b.dataset.act==="edit"){
+      editingId=id; pendingBlob=null;
+      $("fItem").value=s.item; $("fShop").value=s.shop||""; $("fPrice").value=s.price?s.price.toLocaleString("ja-JP"):""; $("fCat").value=s.cat; $("fPop").value=s.pop||"";
+      $("photoBox").innerHTML = s.photoId && photoUrls[s.photoId]?`<img src="${photoUrls[s.photoId]}" alt="">`:"写真を<br>選ぶ";
+      $("formTitle").textContent="伝票を修正"; $("formNo").textContent="No. "+pad(s.no);
+      $("submitBtn").textContent="修正を保存"; $("cancelEdit").hidden=false;
+      $("form").scrollIntoView({behavior:"smooth",block:"start"});
+    } else if(b.dataset.act==="del"){
+      ops.innerHTML = `<span style="font-size:12px">この伝票を削除しますか?</span><button type="button" data-act="really" class="danger">削除する</button><button type="button" data-act="keep">やめる</button>`;
+    } else if(b.dataset.act==="keep"){ renderList(); }
+    else if(b.dataset.act==="really"){
+      try{
+        await tx(["slips","photos"],"readwrite",t=>{ t.objectStore("slips").delete(id); if(s.photoId) t.objectStore("photos").delete(s.photoId); });
+        if(s.photoId && photoUrls[s.photoId]){ URL.revokeObjectURL(photoUrls[s.photoId]); delete photoUrls[s.photoId]; }
+        if(editingId===id) clearForm();
+        await loadAll();
+      }catch(err){ notice("削除できませんでした。もう一度試してください。"); }
+    }
+  });
+  $("filters").addEventListener("click", e=>{ const c=e.target.closest("[data-f]"); if(!c) return; filter=c.dataset.f; renderList(); });
+
+  // ---- settings ----
+  $("toggleSettings").addEventListener("click", ()=>{
+    const s=$("settings"); s.hidden=!s.hidden; $("toggleSettings").setAttribute("aria-expanded", String(!s.hidden));
+    if(!s.hidden){ $("setShop").value=settings.shop||""; $("setBudget").value=settings.budget?settings.budget.toLocaleString("ja-JP"):""; $("setRate").value=settings.rate||""; }
+  });
+  $("saveSettings").addEventListener("click", async ()=>{
+    settings={ shop:$("setShop").value.trim(), budget:num($("setBudget").value), rate:parseFloat($("setRate").value)||0 };
+    renderCover(); renderList(); $("settings").hidden=true; $("toggleSettings").setAttribute("aria-expanded","false");
+    try{ await putKV("settings", settings); }catch(_){ notice("設定を保存できませんでした。"); }
+  });
+
+  // ---- backup ----
+  function renderBackup(){
+    const last = meta.lastBackupAt;
+    $("lastBackup").textContent = last ? `前回の書き出し:${fmtDate(last)}(伝票${meta.lastBackupCount||0}枚)` : "まだ書き出していません";
+    const diff = slips.length - (meta.lastBackupCount||0);
+    const hint = $("backupHint");
+    if(slips.length && (!last || diff>=3)){
+      hint.hidden=false; hint.removeAttribute("data-ok");
+      hint.textContent = last ? `前回の書き出しから伝票が${diff}枚増えています。設定から書き出しておくと安心です。` : "伝票はこの端末の中だけに保存されています。設定から書き出しておくと安心です。";
+    } else hint.hidden=true;
+  }
+  const blobToDataURL = b => new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error); r.readAsDataURL(b); });
+  const dataURLToBlob = async u => (await fetch(u)).blob();
+
+  $("exportBtn").addEventListener("click", async ()=>{
+    const msg=$("backupMsg"); msg.classList.remove("ok"); msg.textContent="書き出し中…";
+    try{
+      const photos={};
+      for(const s of slips){ if(s.photoId){ const b=await getPhoto(s.photoId); if(b) photos[s.photoId]=await blobToDataURL(b); } }
+      const data={ app:"kaitsuke-denpyo", version:1, exportedAt:Date.now(), settings, slips, wants, photos };
+      const d=new Date(); const name=`shiire-denpyo_${d.getMonth()+1}-${d.getDate()}_${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}.json`;
+      const file=new File([JSON.stringify(data)], name, {type:"application/json"});
+      let shared=false;
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        try{ await navigator.share({files:[file], title:"仕入れ伝票のバックアップ"}); shared=true; }
+        catch(err){ if(err && err.name==="AbortError"){ msg.textContent=""; return; } }
+      }
+      if(!shared){
+        const url=URL.createObjectURL(file); const a=document.createElement("a");
+        a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url), 10000);
+      }
+      meta={...meta, lastBackupAt:Date.now(), lastBackupCount:slips.length}; await putKV("meta", meta);
+      renderBackup(); msg.classList.add("ok"); msg.textContent="書き出しました。ファイルアプリやGoogleドライブに保存しておいてください。";
+    }catch(err){ msg.textContent="書き出せませんでした。もう一度試してください。"; }
+  });
+
+  $("importFile").addEventListener("change", async e=>{
+    const f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f) return;
+    const msg=$("backupMsg"); msg.classList.remove("ok"); msg.textContent="";
+    try{
+      const data=JSON.parse(await f.text());
+      if(data.app!=="kaitsuke-denpyo" || !Array.isArray(data.slips)) throw new Error("bad");
+      pendingImport=data;
+      $("importText").textContent=`伝票${data.slips.length}枚・買付リスト${(data.wants||[]).length}点のバックアップ(${fmtDate(data.exportedAt)}書き出し)です。今この端末にある内容はすべて置き換わります。`;
+      $("importConfirm").hidden=false;
+    }catch(_){ msg.textContent="このファイルは仕入れ伝票のバックアップではないようです。書き出したJSONファイルを選んでください。"; }
+  });
+  $("importCancel").addEventListener("click", ()=>{ pendingImport=null; $("importConfirm").hidden=true; });
+  $("importOk").addEventListener("click", async ()=>{
+    const data=pendingImport; if(!data) return;
+    const msg=$("backupMsg");
+    try{
+      const blobs={};
+      for(const [id,u] of Object.entries(data.photos||{})) blobs[id]=await dataURLToBlob(u);
+      await tx(STORES,"readwrite",t=>{
+        STORES.forEach(n=>t.objectStore(n).clear());
+        data.slips.forEach(s=>t.objectStore("slips").put(s));
+        (data.wants||[]).forEach(w=>t.objectStore("wants").put(w));
+        Object.entries(blobs).forEach(([id,b])=>t.objectStore("photos").put(b,id));
+        t.objectStore("kv").put(data.settings||{shop:"",budget:0,rate:0},"settings");
+        t.objectStore("kv").put({seeded:true, lastBackupAt:data.exportedAt, lastBackupCount:data.slips.length},"meta");
+      });
+      Object.values(photoUrls).forEach(u=>URL.revokeObjectURL(u)); Object.keys(photoUrls).forEach(k=>delete photoUrls[k]);
+      pendingImport=null; $("importConfirm").hidden=true; clearForm();
+      await loadAll(); msg.classList.add("ok"); msg.textContent="読み込みました。";
+    }catch(_){ msg.textContent="読み込めませんでした。今の内容はそのまま残っています。"; }
+  });
+
+  // ---- start ----
+  render(); renderWants();
+  (async ()=>{
+    if(!window.indexedDB){ notice("このブラウザでは保存できません。SafariかChromeで開いてください。"); return; }
+    try{ idb = await openDB(); }catch(_){ notice("保存先を開けませんでした。プライベートブラウズを切って開き直してください。"); return; }
+    try{
+      const m = await getKV("meta");
+      if(!m || !m.seeded){
+        await tx(["wants","kv"],"readwrite",t=>{
+          SEED_WANTS.forEach(([name,group],i)=>t.objectStore("wants").put({id:"w"+pad(i+1), name, group, done:false, order:(i+1)*10}));
+          t.objectStore("kv").put({...(m||{}), seeded:true},"meta");
+        });
+      }
+      await loadAll();
+    }catch(_){ notice("データを読み込めませんでした。ページを開き直してください。"); }
+    if(navigator.storage && navigator.storage.persist){ try{ await navigator.storage.persist(); }catch(_){} }
+  })();
+
+  if("serviceWorker" in navigator){ window.addEventListener("load", ()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); }); }
+})();
+</script>
+</body>
+</html>
