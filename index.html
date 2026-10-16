@@ -95,6 +95,13 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
 .witem input:checked::after{content:"済";font-family:var(--font-display);font-size:11px;color:var(--stamp);line-height:1}
 .witem.done label span{text-decoration:line-through;color:var(--ink-soft)}
 .witem .wdel{border:none;background:transparent;color:var(--ink-soft);font-size:16px;cursor:pointer;padding:4px 6px;line-height:1}
+.wtools{display:flex;justify-content:flex-end;margin-bottom:-6px}
+.wtools .chip{padding:4px 12px}
+.wmove{display:flex;gap:4px;flex:none;align-items:center}
+.wmove button{border:1px solid var(--rule);background:transparent;border-radius:4px;width:34px;height:34px;cursor:pointer;font-size:14px;line-height:1}
+.wmove button:disabled{opacity:.3;cursor:default}
+.wmove select{border:1px solid var(--rule);background:transparent;border-radius:4px;height:34px;font-size:12px;max-width:92px}
+.wants.sorting .witem input{display:none}
 .wadd{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:end;border-top:1px dashed var(--rule);padding-top:12px}
 .wadd input,.wadd select{border:none;border-bottom:1.5px solid var(--rule);background:transparent;padding:6px 2px;font-size:16px;border-radius:0;min-width:0}
 .wadd input:focus,.wadd select:focus{border-bottom-color:var(--ink);outline:none}
@@ -147,7 +154,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
 .slip .shop{font-size:13px;color:var(--ink-soft);overflow-wrap:anywhere}
 .slip .price{font-family:var(--font-data);font-weight:700;font-size:18px;font-variant-numeric:tabular-nums;margin-top:auto}
 .slip .price small{font-weight:400;font-size:12px;color:var(--ink-soft);margin-left:6px}
-.slip .pop{font-size:13px;border-left:2px solid var(--stamp);padding-left:8px;margin:4px 0;overflow-wrap:anywhere}
+.slip .pop{font-size:13px;border-left:2px solid var(--stamp);padding-left:8px;margin:4px 0;overflow-wrap:anywhere;white-space:pre-line}
 .slip .ops{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
 .slip .ops button{border:none;background:transparent;font-size:12px;color:var(--ink-soft);text-decoration:underline;cursor:pointer;padding:2px 0}
 .slip .ops .danger{color:var(--stamp)}
@@ -208,6 +215,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
   <details class="wants" id="wants" open>
     <summary><b>買付リスト</b><span id="wCount">0 / 0</span></summary>
     <div class="wants-body">
+      <div class="wtools"><button type="button" class="chip" id="wSort" aria-pressed="false">並べ替え</button></div>
       <div id="wList"><p class="wempty">買付リストを読み込み中です。下の欄からほしいものを追加できます。</p></div>
       <form class="wadd" id="wForm" novalidate>
         <input id="wName" maxlength="60" placeholder="ほしいものを追加" aria-label="ほしいもの">
@@ -234,7 +242,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
         <div class="field"><label for="fCat">カテゴリ</label>
           <select id="fCat"><option>服</option><option>靴</option><option>アクセ</option><option>バッグ</option><option>その他</option></select></div>
       </div>
-      <div class="field"><label for="fPop">店頭POPの一言(なぜ選んだか)</label><textarea id="fPop" maxlength="140" rows="2" placeholder="例:肩の落ち方が今季いちばん"></textarea></div>
+      <div class="field"><label for="fPop">イチオシ・メモ</label><textarea id="fPop" maxlength="300" rows="3" placeholder="例:肩の落ち方が今季いちばん。サイズM、色違いでベージュもあり"></textarea></div>
       <div class="msg" id="formMsg" role="status"></div>
       <div class="actions">
         <button class="btn" type="button" id="cancelEdit" hidden>キャンセル</button>
@@ -267,7 +275,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     ["ブーツに合うきれいめワンピース","服"],["プリーツスカート","服"],["パジャマ","服"]
   ];
   let slips=[], wants=[], settings={shop:"",budget:0,rate:0}, meta={};
-  let editingId=null, pendingBlob=null, pendingPreview=null, filter="すべて", pendingImport=null;
+  let editingId=null, pendingBlob=null, pendingPreview=null, filter="すべて", pendingImport=null, sortMode=false;
   const photoUrls = {};
 
   const won = n => "₩" + Math.round(n||0).toLocaleString("ja-JP");
@@ -338,10 +346,14 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     $("wList").innerHTML = groups.map(g=>{
       const items = wants.filter(w=>(w.group||"その他")===g);
       if(!items.length) return "";
-      return `<div class="wgroup"><h3>${esc(g)}</h3>${items.map(w=>`
+      return `<div class="wgroup"><h3>${esc(g)}</h3>${items.map((w,i)=>`
         <div class="witem${w.done?" done":""}">
           <label><input type="checkbox" data-wid="${esc(w.id)}" ${w.done?"checked":""}><span>${esc(w.name)}</span></label>
-          <button type="button" class="wdel" data-wdel="${esc(w.id)}" aria-label="${esc(w.name)}を削除">×</button>
+          ${sortMode?`<div class="wmove">
+            <select data-wgrp="${esc(w.id)}" aria-label="${esc(w.name)}の分類">${[...new Set([...WGROUPS,w.group||"その他"])].map(o=>`<option${o===(w.group||"その他")?" selected":""}>${esc(o)}</option>`).join("")}</select>
+            <button type="button" data-wmove="up" data-id="${esc(w.id)}" aria-label="${esc(w.name)}を上へ"${i===0?" disabled":""}>↑</button>
+            <button type="button" data-wmove="down" data-id="${esc(w.id)}" aria-label="${esc(w.name)}を下へ"${i===items.length-1?" disabled":""}>↓</button>
+          </div>`:`<button type="button" class="wdel" data-wdel="${esc(w.id)}" aria-label="${esc(w.name)}を削除">×</button>`}
         </div>`).join("")}</div>`;
     }).join("");
   }
@@ -350,6 +362,34 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     const w=wants.find(x=>x.id===cb.dataset.wid); if(!w) return;
     try{ await putRow("wants",{...w,done:cb.checked}); await loadAll(); }
     catch(_){ cb.checked=!cb.checked; notice("チェックを保存できませんでした。もう一度試してください。"); }
+  });
+  // display order: group, then order within the group
+  function wantsInDisplayOrder(){
+    const groups = [...WGROUPS, ...new Set(wants.map(w=>w.group).filter(g=>!WGROUPS.includes(g)))];
+    return groups.flatMap(g=>wants.filter(w=>(w.group||"その他")===g));
+  }
+  async function saveOrder(list){
+    await tx(["wants"],"readwrite",t=>{ list.forEach((w,i)=>t.objectStore("wants").put({...w, order:(i+1)*10})); });
+    await loadAll();
+  }
+  $("wSort").addEventListener("click", ()=>{
+    sortMode=!sortMode; $("wSort").setAttribute("aria-pressed", String(sortMode));
+    $("wSort").textContent = sortMode ? "完了" : "並べ替え";
+    $("wants").classList.toggle("sorting", sortMode); renderWants();
+  });
+  $("wList").addEventListener("click", async e=>{
+    const mv=e.target.closest("[data-wmove]"); if(!mv) return;
+    const list=wantsInDisplayOrder(); const i=list.findIndex(w=>w.id===mv.dataset.id); if(i<0) return;
+    const j = mv.dataset.wmove==="up" ? i-1 : i+1;
+    if(j<0 || j>=list.length || (list[j].group||"その他")!==(list[i].group||"その他")) return;
+    [list[i],list[j]]=[list[j],list[i]];
+    try{ await saveOrder(list); }catch(_){ notice("並べ替えを保存できませんでした。もう一度試してください。"); }
+  });
+  $("wList").addEventListener("change", async e=>{
+    const sel=e.target.closest("select[data-wgrp]"); if(!sel) return;
+    const w=wants.find(x=>x.id===sel.dataset.wgrp); if(!w) return;
+    const order = wants.reduce((m,x)=>Math.max(m,x.order||0),0)+10;
+    try{ await putRow("wants",{...w, group:sel.value, order}); await loadAll(); }catch(_){ notice("分類を変更できませんでした。もう一度試してください。"); }
   });
   $("wList").addEventListener("click", async e=>{
     const b=e.target.closest("[data-wdel]"); if(!b) return;
