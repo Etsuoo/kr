@@ -180,6 +180,14 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
 .slip .ops{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
 .slip .ops button{border:none;background:transparent;font-size:12px;color:var(--ink-soft);text-decoration:underline;cursor:pointer;padding:2px 0}
 .slip .ops .danger{color:var(--stamp)}
+.modal{position:fixed;inset:0;z-index:40;background:rgba(20,22,26,.45);display:flex;align-items:flex-end;justify-content:center;padding-top:calc(24px + env(safe-area-inset-top,0px))}
+.dlg{background:var(--sheet);width:100%;max-width:560px;max-height:100%;overflow:auto;border-radius:14px 14px 0 0;box-shadow:0 -6px 24px rgba(0,0,0,.12);padding-bottom:env(safe-area-inset-bottom,0px)}
+.dlg .form-head{border-radius:14px 14px 0 0;position:sticky;top:0;z-index:1}
+.dlg-actions{justify-content:space-between}
+.dlg-actions .right{display:flex;gap:8px}
+.btn.danger{border-color:var(--stamp);color:var(--stamp)}
+.btn.primary.danger{background:var(--stamp);border-color:var(--stamp);color:#fff}
+@media (min-width:600px){.modal{align-items:center}.dlg{border-radius:14px;max-height:calc(100% - 48px)}}
 .stamp{position:absolute;top:10px;right:12px;width:46px;height:46px;border:2px solid var(--stamp);color:var(--stamp);border-radius:50%;display:grid;place-items:center;
   font-family:var(--font-display);font-size:13px;transform:rotate(-12deg);opacity:.85;background:var(--stamp-bg)}
 .empty{border:1.5px dashed var(--rule);border-radius:4px;padding:28px 18px;text-align:center;color:var(--ink-soft);font-size:14px}
@@ -234,7 +242,7 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
     <div class="bar" aria-hidden="true"><i id="mBar"></i></div>
     <div class="split">
       <div><div class="lbl">自店仕入れ</div><div class="val" id="mMine">₩0</div><div class="sub" id="mMineY"></div></div>
-      <div><div class="lbl">🎁 委託</div><div class="val" id="mGift">₩0</div><div class="sub" id="mGiftY"></div></div>
+      <div><div class="lbl">委託</div><div class="val" id="mGift">₩0</div><div class="sub" id="mGiftY"></div></div>
     </div>
     <div class="cats" id="mCats"></div>
     <p class="hint" id="backupHint" hidden></p>
@@ -303,6 +311,38 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
       <button type="button" id="cCancel">やめる</button>
       <button type="button" id="cSkip">そのまま使う</button>
       <button type="button" id="cOk" class="primary">この範囲で決定</button>
+    </div>
+  </div>
+  <div class="modal" id="editDlg" hidden role="dialog" aria-modal="true" aria-labelledby="eTitle">
+    <div class="dlg">
+      <div class="form-head"><b id="eTitle">伝票を編集</b><span id="eNo"></span></div>
+      <div class="form-body">
+        <div class="photo-pick">
+          <div class="photo-col">
+            <label class="photo-box" for="ePhoto" id="ePhotoBox">写真を<br>選ぶ</label>
+            <input type="file" id="ePhoto" accept="image/*">
+            <button type="button" class="adjust" id="eAdjust" hidden>範囲を調整</button>
+          </div>
+          <div class="field" style="flex:1"><label for="eItem">アイテム名</label><input id="eItem" maxlength="80"></div>
+        </div>
+        <div class="field"><label for="eShop">場所・お店</label><input id="eShop" maxlength="80"></div>
+        <div class="row2">
+          <div class="field"><label for="ePrice">金額</label><div class="price-wrap"><span>₩</span><input id="ePrice" inputmode="numeric"></div></div>
+          <div class="field"><label for="eCat">カテゴリ</label>
+            <select id="eCat"><option>服</option><option>靴</option><option>アクセ</option><option>バッグ</option><option>その他</option></select></div>
+        </div>
+        <div><label class="mine"><input type="checkbox" id="eMine"> 自店仕入れ（委託のものはチェックを外す）</label></div>
+        <div class="field"><label for="ePop">イチオシ・メモ</label><textarea id="ePop" maxlength="300" rows="3"></textarea></div>
+        <div class="msg" id="eMsg" role="status"></div>
+        <div class="actions dlg-actions" id="eActions">
+          <button class="btn danger" type="button" id="eDel">削除</button>
+          <div class="right"><button class="btn" type="button" id="eCancel">キャンセル</button><button class="btn primary" type="button" id="eSave">保存</button></div>
+        </div>
+        <div class="confirm" id="eDelConfirm" hidden>
+          <span>この伝票を削除しますか？写真も一緒に消えます。元に戻せません。</span>
+          <div class="actions"><button class="btn" type="button" id="eDelNo">やめる</button><button class="btn primary danger" type="button" id="eDelYes">削除する</button></div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-label="写真を拡大">
@@ -511,14 +551,13 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
       <article class="slip" data-id="${esc(s.id)}">
         <div class="pic">${s.photoId && photoUrls[s.photoId]?`<img src="${photoUrls[s.photoId]}" alt="${esc(s.item)}">`:"写真なし"}</div>
         <div class="body">
-          <div class="no"><span>No. ${pad(s.no)}</span><span>${esc(s.cat)}</span><span>${fmtDate(s.createdAt)}</span>${s.forMe===false?'<span class="giftmark">🎁 委託</span>':''}</div>
+          <div class="no"><span>No. ${pad(s.no)}</span><span>${esc(s.cat)}</span><span>${fmtDate(s.createdAt)}</span>${s.forMe===false?'<span class="giftmark">委託</span>':''}</div>
           <div class="item">${esc(s.item)}</div>
           ${s.shop?`<div class="shop">${esc(s.shop)}</div>`:""}
           ${s.pop?`<div class="pop">${esc(s.pop)}</div>`:""}
           <div class="price">${won(s.price)}<small>${yen(s.price)}</small></div>
           <div class="ops" data-ops="${esc(s.id)}">
-            <button type="button" data-act="edit">修正</button>
-            <button type="button" data-act="del" class="danger">削除</button>
+            <button type="button" data-act="edit">編集</button>
           </div>
         </div>
         <div class="stamp" aria-label="検品済">検品</div>
@@ -545,9 +584,11 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
     const f=e.target.files&&e.target.files[0]; if(!f) return;
     $("formMsg").textContent="";
     let blob; try{ blob = await shrink(f); }catch(err){ blob=f; }
-    origBlob=blob; openCropper(blob);
+    cropTarget="form"; origBlob=blob; openCropper(blob);
   });
+  let cropTarget="form";
   function usePhoto(blob){
+    if(cropTarget==="edit"){ useEditPhoto(blob); return; }
     pendingBlob = blob;
     if(pendingPreview) URL.revokeObjectURL(pendingPreview);
     pendingPreview = URL.createObjectURL(pendingBlob);
@@ -555,6 +596,7 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
     $("adjustBtn").hidden=false;
   }
   $("adjustBtn").addEventListener("click", async ()=>{
+    cropTarget="form";
     if(origBlob){ openCropper(origBlob); return; }
     const s=editingId && slips.find(x=>x.id===editingId);
     if(s && s.photoId){ const b=await getPhoto(s.photoId); if(b){ origBlob=b; openCropper(b); } }
@@ -620,7 +662,7 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
     $("cropper").hidden=false; document.body.style.overflow="hidden";
     cImg.onload=()=>requestAnimationFrame(cLayout); cImg.src=cUrl;
   }
-  function closeCropper(){ $("cropper").hidden=true; document.body.style.overflow=""; cPts.clear(); cPinch=null; cPan=null; $("fPhoto").value=""; }
+  function closeCropper(){ $("cropper").hidden=true; document.body.style.overflow = $("editDlg").hidden ? "" : "hidden"; cPts.clear(); cPinch=null; cPan=null; $("fPhoto").value=""; $("ePhoto").value=""; }
   window.addEventListener("resize", ()=>{ if(!$("cropper").hidden) cLayout(); });
   $("cIn").addEventListener("click", ()=>cSet(cs.s*1.4));
   $("cOut").addEventListener("click", ()=>cSet(cs.s/1.4));
@@ -630,7 +672,7 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
     const w=cImg.naturalWidth, h=cImg.naturalHeight; if(!w||!h) return;
     const c=document.createElement("canvas"); c.width=h; c.height=w;
     const g=c.getContext("2d"); g.translate(h,0); g.rotate(Math.PI/2); g.drawImage(cImg,0,0);
-    const done=b=>{ if(!b){ $("cHint").textContent="回転できませんでした。もう一度試してください。"; return; } origBlob=b; openCropper(b); };
+    const done=b=>{ if(!b){ $("cHint").textContent="回転できませんでした。もう一度試してください。"; return; } if(cropTarget==="edit") eOrig=b; else origBlob=b; openCropper(b); };
     if(c.toBlob) c.toBlob(done,"image/jpeg",0.92);
     else fetch(c.toDataURL("image/jpeg",0.92)).then(r=>r.blob()).then(done,()=>done(null));
   });
@@ -694,7 +736,8 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
   $("slips").addEventListener("click", async e=>{
     const b=e.target.closest("button[data-act]"); if(!b) return;
     const ops=b.closest("[data-ops]"); const id=ops.dataset.ops; const s=slips.find(x=>x.id===id); if(!s) return;
-    if(b.dataset.act==="edit"){
+    if(b.dataset.act==="edit"){ openEdit(id); return; }
+    if(b.dataset.act==="edit-inline"){
       editingId=id; pendingBlob=null; origBlob=null; $("adjustBtn").hidden=!s.photoId;
       $("fItem").value=s.item; $("fShop").value=s.shop||""; $("fPrice").value=s.price?s.price.toLocaleString("ja-JP"):""; $("fCat").value=s.cat; $("fPop").value=s.pop||""; $("fMine").checked = s.forMe!==false;
       $("photoBox").innerHTML = s.photoId && photoUrls[s.photoId]?`<img src="${photoUrls[s.photoId]}" alt="">`:"写真を<br>選ぶ";
@@ -795,6 +838,75 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
     }catch(_){ msg.textContent="読み込めませんでした。今の内容はそのまま残っています。"; }
   });
 
+  // ---- edit dialog: one slip at a time, with delete inside ----
+  let eId=null, eBlob=null, eOrig=null, ePreview=null;
+  function openEdit(id){
+    const s=slips.find(x=>x.id===id); if(!s) return;
+    eId=id; eBlob=null; eOrig=null;
+    if(ePreview){ URL.revokeObjectURL(ePreview); ePreview=null; }
+    $("eNo").textContent="No. "+pad(s.no);
+    $("eItem").value=s.item||""; $("eShop").value=s.shop||""; $("ePrice").value=s.price?s.price.toLocaleString("ja-JP"):"";
+    $("eCat").value=s.cat||"服"; $("eMine").checked = s.forMe!==false; $("ePop").value=s.pop||"";
+    $("ePhotoBox").innerHTML = s.photoId && photoUrls[s.photoId] ? `<img src="${photoUrls[s.photoId]}" alt="">` : "写真を<br>選ぶ";
+    $("eAdjust").hidden=!s.photoId; $("eMsg").textContent="";
+    $("eDelConfirm").hidden=true; $("eActions").hidden=false;
+    $("editDlg").hidden=false; document.body.style.overflow="hidden";
+  }
+  function closeEdit(){
+    $("editDlg").hidden=true; document.body.style.overflow="";
+    eId=null; eBlob=null; eOrig=null; $("ePhoto").value="";
+    if(ePreview){ URL.revokeObjectURL(ePreview); ePreview=null; }
+  }
+  function useEditPhoto(blob){
+    eBlob=blob;
+    if(ePreview) URL.revokeObjectURL(ePreview);
+    ePreview=URL.createObjectURL(blob);
+    $("ePhotoBox").innerHTML=`<img src="${ePreview}" alt="選んだ写真">`; $("eAdjust").hidden=false;
+  }
+  $("ePhoto").addEventListener("change", async e=>{
+    const f=e.target.files&&e.target.files[0]; if(!f) return;
+    let blob; try{ blob=await shrink(f); }catch(_){ blob=f; }
+    cropTarget="edit"; eOrig=blob; openCropper(blob);
+  });
+  $("eAdjust").addEventListener("click", async ()=>{
+    cropTarget="edit";
+    if(eOrig){ openCropper(eOrig); return; }
+    const s=slips.find(x=>x.id===eId);
+    if(s && s.photoId){ const b=await getPhoto(s.photoId); if(b){ eOrig=b; openCropper(b); } }
+  });
+  $("ePrice").addEventListener("blur", ()=>{ const v=num($("ePrice").value); $("ePrice").value = v? v.toLocaleString("ja-JP"):""; });
+  $("eCancel").addEventListener("click", closeEdit);
+  $("eSave").addEventListener("click", async ()=>{
+    const s=slips.find(x=>x.id===eId); if(!s) return closeEdit();
+    const item=$("eItem").value.trim();
+    if(!item){ $("eMsg").textContent="アイテム名を入れてください。"; $("eItem").focus(); return; }
+    const btn=$("eSave"); btn.disabled=true;
+    try{
+      let photoId=s.photoId||""; const oldPhoto=photoId, blob=eBlob;
+      if(blob) photoId=newId();
+      const row={...s, item, shop:$("eShop").value.trim(), price:num($("ePrice").value), cat:$("eCat").value,
+        pop:$("ePop").value.trim(), forMe:$("eMine").checked, photoId};
+      await tx(["slips","photos"],"readwrite",t=>{
+        if(blob){ t.objectStore("photos").put(blob, photoId); if(oldPhoto) t.objectStore("photos").delete(oldPhoto); }
+        t.objectStore("slips").put(row);
+      });
+      if(blob){ if(oldPhoto && photoUrls[oldPhoto]){ URL.revokeObjectURL(photoUrls[oldPhoto]); delete photoUrls[oldPhoto]; } photoUrls[photoId]=URL.createObjectURL(blob); }
+      closeEdit(); await loadAll(); notice("保存しました。"); setTimeout(()=>notice(""),3000);
+    }catch(err){
+      $("eMsg").textContent = err && err.name==="QuotaExceededError" ? "端末の保存容量が足りません。" : "保存できませんでした。もう一度試してください。";
+    }finally{ btn.disabled=false; }
+  });
+  $("eDel").addEventListener("click", ()=>{ $("eActions").hidden=true; $("eDelConfirm").hidden=false; });
+  $("eDelNo").addEventListener("click", ()=>{ $("eDelConfirm").hidden=true; $("eActions").hidden=false; });
+  $("eDelYes").addEventListener("click", async ()=>{
+    const s=slips.find(x=>x.id===eId); if(!s) return closeEdit();
+    try{
+      await tx(["slips","photos"],"readwrite",t=>{ t.objectStore("slips").delete(s.id); if(s.photoId) t.objectStore("photos").delete(s.photoId); });
+      if(s.photoId && photoUrls[s.photoId]){ URL.revokeObjectURL(photoUrls[s.photoId]); delete photoUrls[s.photoId]; }
+      closeEdit(); await loadAll(); notice("削除しました。"); setTimeout(()=>notice(""),3000);
+    }catch(_){ $("eMsg").textContent="削除できませんでした。もう一度試してください。"; }
+  });
+
   // ---- photo viewer: pinch / double-tap / buttons ----
   const vImg=$("vImg"), vStage=$("vStage");
   let vs={s:1,x:0,y:0}, pinch=null, panFrom=null, lastTap=0;
@@ -812,7 +924,7 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
   $("vOut").addEventListener("click", ()=>vSet(vs.s/1.5));
   $("vReset").addEventListener("click", ()=>vSet(1));
   $("vClose").addEventListener("click", closeViewer);
-  document.addEventListener("keydown", e=>{ if(e.key==="Escape" && !$("viewer").hidden) closeViewer(); if(e.key==="Escape" && !$("cropper").hidden) closeCropper(); });
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape" && !$("viewer").hidden) closeViewer(); if(e.key==="Escape" && !$("cropper").hidden) { closeCropper(); return; } if(e.key==="Escape" && !$("editDlg").hidden) closeEdit(); });
   bindGestures(vStage, ()=>vs, vSet, vApply, ()=>vSet(vs.s>1?1:2.5));
   vStage.addEventListener("wheel", e=>{ e.preventDefault(); vSet(vs.s*(e.deltaY<0?1.15:1/1.15)); }, {passive:false});
 
