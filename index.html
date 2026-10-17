@@ -124,8 +124,10 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
 .price-wrap span{font-family:var(--font-data);font-weight:700}
 .price-wrap input{font-family:var(--font-data);font-variant-numeric:tabular-nums}
 .photo-pick{display:flex;gap:12px;align-items:center}
-.photo-box{width:88px;height:88px;flex:none;border:1.5px dashed var(--rule);border-radius:4px;display:grid;place-items:center;overflow:hidden;background:var(--paper);font-size:11px;color:var(--ink-soft);text-align:center;line-height:1.3}
+.photo-box{width:88px;height:110px;flex:none;border:1.5px dashed var(--rule);border-radius:4px;display:grid;place-items:center;overflow:hidden;background:var(--paper);font-size:11px;color:var(--ink-soft);text-align:center;line-height:1.3}
 .photo-box img{width:100%;height:100%;object-fit:cover}
+.photo-col{display:grid;gap:4px;justify-items:center;flex:none}
+.adjust{border:none;background:transparent;color:var(--ink-soft);font-size:11px;text-decoration:underline;cursor:pointer;padding:0}
 .photo-pick input[type=file]{position:absolute;width:1px;height:1px;opacity:0}
 .btn{border:1.5px solid var(--ink);background:transparent;border-radius:4px;padding:10px 16px;font-weight:700;cursor:pointer}
 .btn.primary{background:var(--ink);color:var(--sheet)}
@@ -241,7 +243,10 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     <div class="form-head"><b id="formTitle">新規伝票</b><span id="formNo">No. 001</span></div>
     <div class="form-body">
       <div class="photo-pick">
-        <label class="photo-box" for="fPhoto" id="photoBox">写真を<br>選ぶ</label>
+        <div class="photo-col">
+          <label class="photo-box" for="fPhoto" id="photoBox">写真を<br>選ぶ</label>
+          <button type="button" class="adjust" id="adjustBtn" hidden>範囲を調整</button>
+        </div>
         <input type="file" id="fPhoto" accept="image/*">
         <div class="field" style="flex:1">
           <label for="fItem">アイテム名</label>
@@ -273,7 +278,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
   <p class="notice" id="notice" hidden></p>
   <div class="viewer" id="cropper" hidden role="dialog" aria-modal="true" aria-label="写真の範囲を調整">
     <div class="cstage"><div class="cframe" id="cFrame"><img id="cImg" alt="選んだ写真"></div></div>
-    <p class="vhint">2本指で拡大縮小・ドラッグで位置を調整。枠の中が伝票の写真になります</p>
+    <p class="vhint" id="cHint">2本指で拡大縮小・ドラッグで位置を調整。枠の中が伝票の写真になります</p>
     <div class="vbar">
       <button type="button" id="cOut" aria-label="縮小">−</button>
       <button type="button" id="cIn" aria-label="拡大">＋</button>
@@ -308,7 +313,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     ["ブーツに合うきれいめワンピース","服"],["プリーツスカート","服"],["パジャマ","服"]
   ];
   let slips=[], wants=[], settings={shop:"",budget:0,rate:0}, meta={};
-  let editingId=null, pendingBlob=null, pendingPreview=null, filter="すべて", pendingImport=null, sortMode=false;
+  let origBlob=null, editingId=null, pendingBlob=null, pendingPreview=null, filter="すべて", pendingImport=null, sortMode=false;
   const photoUrls = {};
 
   const won = n => "₩" + Math.round(n||0).toLocaleString("ja-JP");
@@ -508,14 +513,58 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     const f=e.target.files&&e.target.files[0]; if(!f) return;
     $("formMsg").textContent="";
     let blob; try{ blob = await shrink(f); }catch(err){ blob=f; }
-    openCropper(blob);
+    origBlob=blob; openCropper(blob);
   });
   function usePhoto(blob){
     pendingBlob = blob;
     if(pendingPreview) URL.revokeObjectURL(pendingPreview);
     pendingPreview = URL.createObjectURL(pendingBlob);
     $("photoBox").innerHTML = `<img src="${pendingPreview}" alt="選んだ写真">`;
+    $("adjustBtn").hidden=false;
   }
+  $("adjustBtn").addEventListener("click", async ()=>{
+    if(origBlob){ openCropper(origBlob); return; }
+    const s=editingId && slips.find(x=>x.id===editingId);
+    if(s && s.photoId){ const b=await getPhoto(s.photoId); if(b){ origBlob=b; openCropper(b); } }
+  });
+
+  // ---- shared pinch / drag / double-tap handling ----
+  // Touch events with preventDefault so iPhone does not zoom the whole page instead of the photo.
+  function bindGestures(el, st, setScale, apply, onDouble){
+    let pinch=null, pan=null, lastTap=0;
+    const d2=(a,b)=>Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)||1;
+    const mid=(a,b)=>({x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2});
+    el.addEventListener("touchstart", e=>{
+      e.preventDefault(); const S=st();
+      if(e.touches.length>=2){ const a=e.touches[0], b=e.touches[1], m=mid(a,b); pinch={d:d2(a,b), s:S.s, mx:m.x, my:m.y, x:S.x, y:S.y}; pan=null; lastTap=0; }
+      else if(e.touches.length===1){
+        const t=e.touches[0]; pan={x:t.clientX-S.x, y:t.clientY-S.y};
+        const now=Date.now(); if(now-lastTap<300){ onDouble(); lastTap=0; } else lastTap=now;
+      }
+    },{passive:false});
+    el.addEventListener("touchmove", e=>{
+      e.preventDefault(); const S=st();
+      if(e.touches.length>=2 && pinch){
+        const a=e.touches[0], b=e.touches[1], m=mid(a,b);
+        setScale(pinch.s*d2(a,b)/pinch.d); S.x=pinch.x+(m.x-pinch.mx); S.y=pinch.y+(m.y-pinch.my); apply();
+      } else if(e.touches.length===1 && pan){
+        const t=e.touches[0]; S.x=t.clientX-pan.x; S.y=t.clientY-pan.y; apply();
+      }
+    },{passive:false});
+    const end=e=>{
+      const S=st(); pinch=null;
+      if(e.touches.length===1){ const t=e.touches[0]; pan={x:t.clientX-S.x, y:t.clientY-S.y}; } else pan=null;
+    };
+    el.addEventListener("touchend", end); el.addEventListener("touchcancel", end);
+    let mouse=null;
+    el.addEventListener("mousedown", e=>{ const S=st(); mouse={x:e.clientX-S.x, y:e.clientY-S.y}; e.preventDefault(); });
+    window.addEventListener("mousemove", e=>{ if(!mouse) return; const S=st(); S.x=e.clientX-mouse.x; S.y=e.clientY-mouse.y; apply(); });
+    window.addEventListener("mouseup", ()=>{ mouse=null; });
+    el.addEventListener("dblclick", e=>{ e.preventDefault(); onDouble(); });
+  }
+  ["gesturestart","gesturechange","gestureend"].forEach(t=>document.addEventListener(t, e=>{
+    if(!$("cropper").hidden || !$("viewer").hidden) e.preventDefault();
+  },{passive:false}));
 
   // ---- cropper: zoom / move the photo inside the slip frame before saving ----
   const cImg=$("cImg"), cFrame=$("cFrame");
@@ -534,7 +583,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     cBase=Math.max(W/w,H/h); cImg.style.width=(w*cBase)+"px"; cImg.style.height=(h*cBase)+"px"; cApply();
   }
   function openCropper(blob){
-    cBlob=blob; cs={s:1,x:0,y:0};
+    cBlob=blob; cs={s:1,x:0,y:0}; $("cHint").textContent="2本指で拡大縮小・ドラッグで位置を調整。枠の中が伝票の写真になります";
     if(cUrl) URL.revokeObjectURL(cUrl); cUrl=URL.createObjectURL(blob);
     $("cropper").hidden=false; document.body.style.overflow="hidden";
     cImg.onload=()=>requestAnimationFrame(cLayout); cImg.src=cUrl;
@@ -546,39 +595,27 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
   $("cCancel").addEventListener("click", closeCropper);
   $("cSkip").addEventListener("click", ()=>{ usePhoto(cBlob); closeCropper(); });
   $("cOk").addEventListener("click", ()=>{
+    cApply();
     const {W,H}=cBox(), ds=cBase*cs.s, w=cImg.naturalWidth, h=cImg.naturalHeight;
-    const left=W/2+cs.x-w*ds/2, top=H/2+cs.y-h*ds/2;
-    const sx=-left/ds, sy=-top/ds, sw=W/ds, sh=H/ds;
-    const outW=Math.round(Math.min(1080,sw)), outH=Math.round(outW*H/W);
+    if(!W||!H||!w||!h){ $("cHint").textContent="写真を読み込めませんでした。もう一度選び直してください。"; return; }
+    // visible area of the photo inside the frame, in photo pixels (kept inside the photo)
+    let sw=Math.min(w, W/ds), sh=Math.min(h, H/ds);
+    let sx=w/2 - cs.x/ds - sw/2, sy=h/2 - cs.y/ds - sh/2;
+    sx=Math.max(0,Math.min(w-sw,sx)); sy=Math.max(0,Math.min(h-sh,sy));
+    sx=Math.floor(sx); sy=Math.floor(sy); sw=Math.floor(Math.min(sw,w-sx)); sh=Math.floor(Math.min(sh,h-sy));
+    const outW=Math.max(1,Math.min(1080,sw)), outH=Math.max(1,Math.round(outW*sh/sw));
     const c=document.createElement("canvas"); c.width=outW; c.height=outH;
-    c.getContext("2d").drawImage(cImg,sx,sy,sw,sh,0,0,outW,outH);
-    c.toBlob(b=>{ usePhoto(b||cBlob); closeCropper(); },"image/jpeg",0.85);
+    try{ c.getContext("2d").drawImage(cImg,sx,sy,sw,sh,0,0,outW,outH); }
+    catch(_){ $("cHint").textContent="切り取りに失敗しました。「そのまま使う」を押してください。"; return; }
+    const done=b=>{ if(!b){ $("cHint").textContent="切り取りに失敗しました。「そのまま使う」を押してください。"; return; } usePhoto(b); closeCropper(); };
+    if(c.toBlob) c.toBlob(done,"image/jpeg",0.85);
+    else fetch(c.toDataURL("image/jpeg",0.85)).then(r=>r.blob()).then(done,()=>done(null));
   });
-  cFrame.addEventListener("pointerdown", e=>{
-    try{ cFrame.setPointerCapture(e.pointerId); }catch(_){}
-    cPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(cPts.size===2){ const [a,b]=[...cPts.values()]; cPinch={d:Math.hypot(a.x-b.x,a.y-b.y)||1, s:cs.s}; cPan=null; }
-    else if(cPts.size===1){
-      cPan={x:e.clientX-cs.x, y:e.clientY-cs.y};
-      const now=Date.now(); if(now-cLastTap<300){ cSet(cs.s>1?1:2); cLastTap=0; } else cLastTap=now;
-    }
-  });
-  cFrame.addEventListener("pointermove", e=>{
-    if(!cPts.has(e.pointerId)) return;
-    cPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(cPts.size===2 && cPinch){ const [a,b]=[...cPts.values()]; cSet(cPinch.s*Math.hypot(a.x-b.x,a.y-b.y)/cPinch.d); }
-    else if(cPts.size===1 && cPan){ cs.x=e.clientX-cPan.x; cs.y=e.clientY-cPan.y; cApply(); }
-  });
-  const cEnd=e=>{
-    cPts.delete(e.pointerId); if(cPts.size<2) cPinch=null;
-    if(cPts.size===1){ const p=[...cPts.values()][0]; cPan={x:p.x-cs.x, y:p.y-cs.y}; }
-    if(cPts.size===0) cPan=null;
-  };
-  cFrame.addEventListener("pointerup", cEnd); cFrame.addEventListener("pointercancel", cEnd);
+  bindGestures(cFrame, ()=>cs, cSet, cApply, ()=>cSet(cs.s>1?1:2));
   cFrame.addEventListener("wheel", e=>{ e.preventDefault(); cSet(cs.s*(e.deltaY<0?1.12:1/1.12)); }, {passive:false});
 
   function clearForm(){
-    editingId=null; pendingBlob=null;
+    editingId=null; pendingBlob=null; origBlob=null; $("adjustBtn").hidden=true;
     if(pendingPreview){ URL.revokeObjectURL(pendingPreview); pendingPreview=null; }
     ["fItem","fShop","fPrice","fPop"].forEach(id=>$(id).value=""); $("fPhoto").value="";
     $("photoBox").innerHTML="写真を<br>選ぶ"; $("formTitle").textContent="新規伝票";
@@ -617,7 +654,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     const b=e.target.closest("button[data-act]"); if(!b) return;
     const ops=b.closest("[data-ops]"); const id=ops.dataset.ops; const s=slips.find(x=>x.id===id); if(!s) return;
     if(b.dataset.act==="edit"){
-      editingId=id; pendingBlob=null;
+      editingId=id; pendingBlob=null; origBlob=null; $("adjustBtn").hidden=!s.photoId;
       $("fItem").value=s.item; $("fShop").value=s.shop||""; $("fPrice").value=s.price?s.price.toLocaleString("ja-JP"):""; $("fCat").value=s.cat; $("fPop").value=s.pop||"";
       $("photoBox").innerHTML = s.photoId && photoUrls[s.photoId]?`<img src="${photoUrls[s.photoId]}" alt="">`:"写真を<br>選ぶ";
       $("formTitle").textContent="伝票を修正"; $("formNo").textContent="No. "+pad(s.no);
@@ -735,29 +772,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
   $("vReset").addEventListener("click", ()=>vSet(1));
   $("vClose").addEventListener("click", closeViewer);
   document.addEventListener("keydown", e=>{ if(e.key==="Escape" && !$("viewer").hidden) closeViewer(); if(e.key==="Escape" && !$("cropper").hidden) closeCropper(); });
-  vStage.addEventListener("pointerdown", e=>{
-    try{ vStage.setPointerCapture(e.pointerId); }catch(_){}
-    pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(pts.size===2){ const [a,b]=[...pts.values()]; pinch={d:dist(a,b)||1, s:vs.s}; panFrom=null; }
-    else if(pts.size===1){
-      panFrom={x:e.clientX-vs.x, y:e.clientY-vs.y};
-      const now=Date.now();
-      if(now-lastTap<300){ vSet(vs.s>1?1:2.5); lastTap=0; } else lastTap=now;
-    }
-  });
-  vStage.addEventListener("pointermove", e=>{
-    if(!pts.has(e.pointerId)) return;
-    pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(pts.size===2 && pinch){ const [a,b]=[...pts.values()]; vSet(pinch.s*dist(a,b)/pinch.d); }
-    else if(pts.size===1 && panFrom && vs.s>1){ vs.x=e.clientX-panFrom.x; vs.y=e.clientY-panFrom.y; vApply(); }
-  });
-  const vEnd=e=>{
-    pts.delete(e.pointerId);
-    if(pts.size<2) pinch=null;
-    if(pts.size===1){ const p=[...pts.values()][0]; panFrom={x:p.x-vs.x, y:p.y-vs.y}; }
-    if(pts.size===0) panFrom=null;
-  };
-  vStage.addEventListener("pointerup", vEnd); vStage.addEventListener("pointercancel", vEnd);
+  bindGestures(vStage, ()=>vs, vSet, vApply, ()=>vSet(vs.s>1?1:2.5));
   vStage.addEventListener("wheel", e=>{ e.preventDefault(); vSet(vs.s*(e.deltaY<0?1.15:1/1.15)); }, {passive:false});
 
   // ---- start ----
