@@ -4,32 +4,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ソウル仕入れ伝票</title>
-<meta name="theme-color" content="#111317">
+<meta name="theme-color" content="#f3f4f6">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="仕入れ伝票">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap">
 <style>
-/* Layout: a pad of purchase slips. Header = cover with totals; want list = order sheet; each purchase = one slip. Calm dark, single theme. */
+/* Layout: a pad of purchase slips. Header = cover with totals; want list = order sheet; each purchase = one slip. Calm light theme on white. */
 :root{
-  --paper:#111317;        /* 背景 */
-  --sheet:#1a1d23;        /* カード面 */
-  --head:#22262e;         /* 見出し帯 */
-  --ink:#e7e9ec;
-  --ink-soft:#9097a1;
-  --rule:#2e333c;
-  --stamp:#d4897a;        /* 落ち着いた朱 */
-  --stamp-bg:#2e2220;
-  --ok:#8cc3a5;
+  --paper:#f3f4f6;        /* 背景（ごく薄いグレー） */
+  --sheet:#ffffff;        /* カード面は白 */
+  --head:#f7f8fa;         /* 見出し帯 */
+  --ink:#1c2027;
+  --ink-soft:#6a717c;
+  --rule:#e2e5ea;
+  --stamp:#c0574a;        /* 落ち着いた朱 */
+  --stamp-bg:#fbefed;
+  --ok:#2f7a55;
   --font-display:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --font-body:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --font-data:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
-  color-scheme:dark;
+  color-scheme:light;
 }
 
 body{background:var(--paper);color:var(--ink);font-family:var(--font-body);line-height:1.6;
