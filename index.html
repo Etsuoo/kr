@@ -63,6 +63,17 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
 .bar i{display:block;height:100%;background:var(--ink);width:0;transition:width .3s}
 .bar i.over{background:var(--stamp)}
 .cats{display:flex;flex-wrap:wrap;gap:6px}
+.tile{all:unset;box-sizing:border-box;display:block;min-width:0;cursor:pointer;border-radius:4px}
+.tile:focus-visible{outline:2px solid var(--stamp);outline-offset:2px}
+.tile .val.ph{color:var(--stamp);font-size:13px;text-decoration:underline}
+.split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;border-top:1px dashed var(--rule);padding-top:10px}
+.split div{min-width:0}
+.split .lbl{font-size:11px;color:var(--ink-soft);letter-spacing:.08em}
+.split .val{font-family:var(--font-data);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
+.split .sub{font-family:var(--font-data);font-size:11px;color:var(--ink-soft)}
+.mine{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;user-select:none}
+.mine input{width:20px;height:20px;margin:0;accent-color:var(--ink)}
+.giftmark{color:var(--stamp);font-weight:700}
 .cats span{font-size:12px;border:1px solid var(--rule);border-radius:999px;padding:2px 10px;font-family:var(--font-data)}
 
 /* settings */
@@ -218,10 +229,14 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     </div>
     <div class="meter">
       <div><div class="lbl">仕入れ合計</div><div class="val" id="mTotal">₩0</div><div class="sub" id="mTotalY"></div></div>
-      <div><div class="lbl">予算</div><div class="val" id="mBudget">—</div><div class="sub" id="mBudgetY"></div></div>
+      <button type="button" class="tile" id="budgetTile" aria-label="予算を入力"><div class="lbl">予算 ✎</div><div class="val" id="mBudget">—</div><div class="sub" id="mBudgetY"></div></button>
       <div><div class="lbl">残り</div><div class="val" id="mLeft">—</div><div class="sub" id="mLeftY"></div></div>
     </div>
     <div class="bar" aria-hidden="true"><i id="mBar"></i></div>
+    <div class="split">
+      <div><div class="lbl">自分用</div><div class="val" id="mMine">₩0</div><div class="sub" id="mMineY"></div></div>
+      <div><div class="lbl">🎁 あげる用</div><div class="val" id="mGift">₩0</div><div class="sub" id="mGiftY"></div></div>
+    </div>
     <div class="cats" id="mCats"></div>
     <p class="hint" id="backupHint" hidden></p>
   </section>
@@ -258,6 +273,9 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
         <div class="field"><label for="fPrice">金額</label><div class="price-wrap"><span>₩</span><input id="fPrice" inputmode="numeric" placeholder="89,000"></div></div>
         <div class="field"><label for="fCat">カテゴリ</label>
           <select id="fCat"><option>服</option><option>靴</option><option>アクセ</option><option>バッグ</option><option>その他</option></select></div>
+      </div>
+      <div>
+        <label class="mine"><input type="checkbox" id="fMine" checked> 自分用（あげるものはチェックを外す）</label>
       </div>
       <div class="field"><label for="fPop">イチオシ・メモ</label><textarea id="fPop" maxlength="300" rows="3" placeholder="例:肩の落ち方が今季いちばん。サイズM、色違いでベージュもあり"></textarea></div>
       <div class="msg" id="formMsg" role="status"></div>
@@ -363,6 +381,11 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
 
   async function loadAll(){
     const [s,w,st,m] = await Promise.all([getAll("slips"),getAll("wants"),getKV("settings"),getKV("meta")]);
+    const untagged = s.filter(x=>x.forMe===undefined);
+    if(untagged.length){
+      untagged.forEach(x=>{ const t=(x.item||"")+" "+(x.pop||""); x.forMe = !/用/.test(t.replace(/自分用/g,"")); });
+      try{ await tx(["slips"],"readwrite",t=>{ untagged.forEach(x=>t.objectStore("slips").put(x)); }); }catch(_){}
+    }
     slips = s.sort((a,b)=>b.createdAt-a.createdAt);
     wants = w.sort((a,b)=>(a.order||0)-(b.order||0));
     if(st) settings = {shop:st.shop||"",budget:st.budget||0,rate:st.rate||0};
@@ -450,17 +473,25 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     $("mTotal").textContent = won(total); $("mTotalY").textContent = yen(total);
     if(settings.budget>0){
       const left = settings.budget-total;
-      $("mBudget").textContent = won(settings.budget); $("mBudgetY").textContent = yen(settings.budget);
+      $("mBudget").classList.remove("ph"); $("mBudget").textContent = won(settings.budget); $("mBudgetY").textContent = yen(settings.budget);
       $("mLeft").textContent = (left<0?"−":"") + won(Math.abs(left)); $("mLeftY").textContent = yen(Math.abs(left));
       $("mLeft").classList.toggle("over", left<0);
       const pct = Math.min(100, total/settings.budget*100);
       $("mBar").style.width = pct+"%"; $("mBar").classList.toggle("over", left<0);
     } else {
-      $("mBudget").textContent="—"; $("mBudgetY").textContent=""; $("mLeft").textContent="—"; $("mLeftY").textContent=""; $("mBar").style.width="0";
+      $("mBudget").innerHTML='<span class="ph">タップして入力</span>'; $("mBudget").classList.add("ph"); $("mBudgetY").textContent=""; $("mLeft").textContent="—"; $("mLeftY").textContent=""; $("mBar").style.width="0";
     }
     const by = {}; slips.forEach(s=>{ by[s.cat]=(by[s.cat]||0)+(s.price||0); });
     $("mCats").innerHTML = CATS.filter(c=>by[c]).map(c=>`<span>${c} ${won(by[c])}</span>`).join("");
+    const mine = slips.filter(s=>s.forMe!==false).reduce((a,s)=>a+(s.price||0),0), gift = total-mine;
+    const nMine = slips.filter(s=>s.forMe!==false).length, nGift = slips.length-nMine;
+    $("mMine").textContent = won(mine); $("mMineY").textContent = `${nMine}点 ${yen(mine)}`;
+    $("mGift").textContent = won(gift); $("mGiftY").textContent = `${nGift}点 ${yen(gift)}`;
   }
+  $("budgetTile").addEventListener("click", ()=>{
+    const st=$("settings"); if(st.hidden) $("toggleSettings").click();
+    $("setBudget").focus(); $("setBudget").scrollIntoView({behavior:"smooth",block:"center"});
+  });
 
   function renderFilters(){
     const present = ["すべて", ...CATS.filter(c=>slips.some(s=>s.cat===c))];
@@ -480,7 +511,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
       <article class="slip" data-id="${esc(s.id)}">
         <div class="pic">${s.photoId && photoUrls[s.photoId]?`<img src="${photoUrls[s.photoId]}" alt="${esc(s.item)}">`:"写真なし"}</div>
         <div class="body">
-          <div class="no"><span>No. ${pad(s.no)}</span><span>${esc(s.cat)}</span><span>${fmtDate(s.createdAt)}</span></div>
+          <div class="no"><span>No. ${pad(s.no)}</span><span>${esc(s.cat)}</span><span>${fmtDate(s.createdAt)}</span>${s.forMe===false?'<span class="giftmark">🎁 あげる用</span>':''}</div>
           <div class="item">${esc(s.item)}</div>
           ${s.shop?`<div class="shop">${esc(s.shop)}</div>`:""}
           ${s.pop?`<div class="pop">${esc(s.pop)}</div>`:""}
@@ -627,7 +658,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
   function clearForm(){
     editingId=null; pendingBlob=null; origBlob=null; $("adjustBtn").hidden=true;
     if(pendingPreview){ URL.revokeObjectURL(pendingPreview); pendingPreview=null; }
-    ["fItem","fShop","fPrice","fPop"].forEach(id=>$(id).value=""); $("fPhoto").value="";
+    ["fItem","fShop","fPrice","fPop"].forEach(id=>$(id).value=""); $("fPhoto").value=""; $("fMine").checked=true;
     $("photoBox").innerHTML="写真を<br>選ぶ"; $("formTitle").textContent="新規伝票";
     $("submitBtn").textContent="伝票に記入"; $("cancelEdit").hidden=true; resetNo();
   }
@@ -645,7 +676,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
       const oldPhoto = photoId;
       if(pendingBlob) photoId = newId();
       const row = { id: prev?prev.id:newId(), item, shop:$("fShop").value.trim(), price:num($("fPrice").value), cat:$("fCat").value,
-        pop:$("fPop").value.trim(), photoId, no: prev?prev.no:nextNo(), createdAt: prev?prev.createdAt:Date.now() };
+        pop:$("fPop").value.trim(), forMe:$("fMine").checked, photoId, no: prev?prev.no:nextNo(), createdAt: prev?prev.createdAt:Date.now() };
       const blob = pendingBlob;
       await tx(["slips","photos"],"readwrite",t=>{
         if(blob){ t.objectStore("photos").put(blob, photoId); if(oldPhoto) t.objectStore("photos").delete(oldPhoto); }
@@ -665,7 +696,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     const ops=b.closest("[data-ops]"); const id=ops.dataset.ops; const s=slips.find(x=>x.id===id); if(!s) return;
     if(b.dataset.act==="edit"){
       editingId=id; pendingBlob=null; origBlob=null; $("adjustBtn").hidden=!s.photoId;
-      $("fItem").value=s.item; $("fShop").value=s.shop||""; $("fPrice").value=s.price?s.price.toLocaleString("ja-JP"):""; $("fCat").value=s.cat; $("fPop").value=s.pop||"";
+      $("fItem").value=s.item; $("fShop").value=s.shop||""; $("fPrice").value=s.price?s.price.toLocaleString("ja-JP"):""; $("fCat").value=s.cat; $("fPop").value=s.pop||""; $("fMine").checked = s.forMe!==false;
       $("photoBox").innerHTML = s.photoId && photoUrls[s.photoId]?`<img src="${photoUrls[s.photoId]}" alt="">`:"写真を<br>選ぶ";
       $("formTitle").textContent="伝票を修正"; $("formNo").textContent="No. "+pad(s.no);
       $("submitBtn").textContent="修正を保存"; $("cancelEdit").hidden=false;
