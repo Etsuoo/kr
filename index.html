@@ -147,7 +147,15 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
   -webkit-mask:radial-gradient(circle 5px at 50% 0,#0000 98%,#000) 0 0/14px 51% repeat-x,radial-gradient(circle 5px at 50% 100%,#0000 98%,#000) 0 100%/14px 51% repeat-x;
           mask:radial-gradient(circle 5px at 50% 0,#0000 98%,#000) 0 0/14px 51% repeat-x,radial-gradient(circle 5px at 50% 100%,#0000 98%,#000) 0 100%/14px 51% repeat-x}
 .slip .pic{width:96px;height:120px;border-radius:2px;overflow:hidden;background:var(--paper);display:grid;place-items:center;font-size:11px;color:var(--ink-soft)}
-.slip .pic img{width:100%;height:100%;object-fit:cover}
+.slip .pic img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+
+/* photo viewer */
+.viewer{position:fixed;inset:0;z-index:50;background:rgba(10,14,22,.95);display:flex;flex-direction:column}
+.vstage{flex:1;min-height:0;overflow:hidden;touch-action:none;display:grid;place-items:center;padding-top:env(safe-area-inset-top,0px)}
+.vstage img{max-width:100%;max-height:100%;transform-origin:center center;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;will-change:transform}
+.vbar{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.vbar button{border:1px solid rgba(255,255,255,.45);background:transparent;color:#fff;border-radius:999px;padding:8px 16px;font-size:15px;cursor:pointer;min-width:48px;font-family:var(--font-data)}
+.vhint{color:rgba(255,255,255,.6);font-size:12px;text-align:center;margin:0;padding-top:4px}
 .slip .body{min-width:0;display:flex;flex-direction:column;gap:2px}
 .slip .no{font-family:var(--font-data);font-size:11px;color:var(--ink-soft);display:flex;gap:8px;flex-wrap:wrap}
 .slip .item{font-weight:700;font-size:16px;line-height:1.35;overflow-wrap:anywhere}
@@ -259,6 +267,16 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     </div>
   </section>
   <p class="notice" id="notice" hidden></p>
+  <div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-label="写真を拡大">
+    <div class="vstage" id="vStage"><img id="vImg" alt=""></div>
+    <p class="vhint">2本指で拡大縮小・ダブルタップで拡大／元に戻す</p>
+    <div class="vbar">
+      <button type="button" id="vOut" aria-label="縮小">−</button>
+      <button type="button" id="vReset">元のサイズ</button>
+      <button type="button" id="vIn" aria-label="拡大">＋</button>
+      <button type="button" id="vClose">閉じる</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -619,6 +637,49 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
       await loadAll(); msg.classList.add("ok"); msg.textContent="読み込みました。";
     }catch(_){ msg.textContent="読み込めませんでした。今の内容はそのまま残っています。"; }
   });
+
+  // ---- photo viewer: pinch / double-tap / buttons ----
+  const vImg=$("vImg"), vStage=$("vStage");
+  let vs={s:1,x:0,y:0}, pinch=null, panFrom=null, lastTap=0;
+  const pts=new Map();
+  const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  function vApply(){ vImg.style.transform=`translate(${vs.x}px,${vs.y}px) scale(${vs.s})`; }
+  function vSet(scale){ vs.s=Math.min(5,Math.max(1,scale)); if(vs.s===1){ vs.x=0; vs.y=0; } vApply(); }
+  function openViewer(src,alt){
+    vImg.src=src; vImg.alt=alt||""; vs={s:1,x:0,y:0}; vApply();
+    $("viewer").hidden=false; document.body.style.overflow="hidden"; $("vClose").focus();
+  }
+  function closeViewer(){ $("viewer").hidden=true; document.body.style.overflow=""; pts.clear(); pinch=null; panFrom=null; }
+  $("slips").addEventListener("click", e=>{ const img=e.target.closest(".pic img"); if(img) openViewer(img.src, img.alt); });
+  $("vIn").addEventListener("click", ()=>vSet(vs.s*1.5));
+  $("vOut").addEventListener("click", ()=>vSet(vs.s/1.5));
+  $("vReset").addEventListener("click", ()=>vSet(1));
+  $("vClose").addEventListener("click", closeViewer);
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape" && !$("viewer").hidden) closeViewer(); });
+  vStage.addEventListener("pointerdown", e=>{
+    try{ vStage.setPointerCapture(e.pointerId); }catch(_){}
+    pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.size===2){ const [a,b]=[...pts.values()]; pinch={d:dist(a,b)||1, s:vs.s}; panFrom=null; }
+    else if(pts.size===1){
+      panFrom={x:e.clientX-vs.x, y:e.clientY-vs.y};
+      const now=Date.now();
+      if(now-lastTap<300){ vSet(vs.s>1?1:2.5); lastTap=0; } else lastTap=now;
+    }
+  });
+  vStage.addEventListener("pointermove", e=>{
+    if(!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.size===2 && pinch){ const [a,b]=[...pts.values()]; vSet(pinch.s*dist(a,b)/pinch.d); }
+    else if(pts.size===1 && panFrom && vs.s>1){ vs.x=e.clientX-panFrom.x; vs.y=e.clientY-panFrom.y; vApply(); }
+  });
+  const vEnd=e=>{
+    pts.delete(e.pointerId);
+    if(pts.size<2) pinch=null;
+    if(pts.size===1){ const p=[...pts.values()][0]; panFrom={x:p.x-vs.x, y:p.y-vs.y}; }
+    if(pts.size===0) panFrom=null;
+  };
+  vStage.addEventListener("pointerup", vEnd); vStage.addEventListener("pointercancel", vEnd);
+  vStage.addEventListener("wheel", e=>{ e.preventDefault(); vSet(vs.s*(e.deltaY<0?1.15:1/1.15)); }, {passive:false});
 
   // ---- start ----
   render(); renderWants();
