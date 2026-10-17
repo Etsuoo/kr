@@ -150,12 +150,16 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
 .slip .pic img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
 
 /* photo viewer */
-.viewer{position:fixed;inset:0;z-index:50;background:rgba(10,14,22,.95);display:flex;flex-direction:column}
+.viewer{position:fixed;inset:0;z-index:50;background:#0e121b;display:flex;flex-direction:column}
 .vstage{flex:1;min-height:0;overflow:hidden;touch-action:none;display:grid;place-items:center;padding-top:env(safe-area-inset-top,0px)}
 .vstage img{max-width:100%;max-height:100%;transform-origin:center center;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;will-change:transform}
 .vbar{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .vbar button{border:1px solid rgba(255,255,255,.45);background:transparent;color:#fff;border-radius:999px;padding:8px 16px;font-size:15px;cursor:pointer;min-width:48px;font-family:var(--font-data)}
-.vhint{color:rgba(255,255,255,.6);font-size:12px;text-align:center;margin:0;padding-top:4px}
+.cstage{flex:1;min-height:0;display:grid;place-items:center;padding:calc(16px + env(safe-area-inset-top,0px)) 16px 8px;touch-action:none}
+.cframe{position:relative;overflow:hidden;width:min(86vw,calc((100vh - 220px) * .8));aspect-ratio:4/5;max-width:100%;border-radius:4px;outline:2px solid rgba(255,255,255,.85);background:#000;touch-action:none}
+.cframe img{position:absolute;left:50%;top:50%;max-width:none;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;will-change:transform;pointer-events:none}
+.vbar button.primary{background:#fff;color:#1f2a44;border-color:#fff;font-weight:700}
+.vhint{color:rgba(255,255,255,.65);font-size:12px;text-align:center;margin:0;padding:4px 16px 0}
 .slip .body{min-width:0;display:flex;flex-direction:column;gap:2px}
 .slip .no{font-family:var(--font-data);font-size:11px;color:var(--ink-soft);display:flex;gap:8px;flex-wrap:wrap}
 .slip .item{font-weight:700;font-size:16px;line-height:1.35;overflow-wrap:anywhere}
@@ -267,6 +271,17 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     </div>
   </section>
   <p class="notice" id="notice" hidden></p>
+  <div class="viewer" id="cropper" hidden role="dialog" aria-modal="true" aria-label="写真の範囲を調整">
+    <div class="cstage"><div class="cframe" id="cFrame"><img id="cImg" alt="選んだ写真"></div></div>
+    <p class="vhint">2本指で拡大縮小・ドラッグで位置を調整。枠の中が伝票の写真になります</p>
+    <div class="vbar">
+      <button type="button" id="cOut" aria-label="縮小">−</button>
+      <button type="button" id="cIn" aria-label="拡大">＋</button>
+      <button type="button" id="cCancel">やめる</button>
+      <button type="button" id="cSkip">そのまま使う</button>
+      <button type="button" id="cOk" class="primary">この範囲で決定</button>
+    </div>
+  </div>
   <div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-label="写真を拡大">
     <div class="vstage" id="vStage"><img id="vImg" alt=""></div>
     <p class="vhint">2本指で拡大縮小・ダブルタップで拡大／元に戻す</p>
@@ -492,11 +507,75 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
   $("fPhoto").addEventListener("change", async e=>{
     const f=e.target.files&&e.target.files[0]; if(!f) return;
     $("formMsg").textContent="";
-    try{ pendingBlob = await shrink(f); }catch(err){ pendingBlob=f; }
+    let blob; try{ blob = await shrink(f); }catch(err){ blob=f; }
+    openCropper(blob);
+  });
+  function usePhoto(blob){
+    pendingBlob = blob;
     if(pendingPreview) URL.revokeObjectURL(pendingPreview);
     pendingPreview = URL.createObjectURL(pendingBlob);
     $("photoBox").innerHTML = `<img src="${pendingPreview}" alt="選んだ写真">`;
+  }
+
+  // ---- cropper: zoom / move the photo inside the slip frame before saving ----
+  const cImg=$("cImg"), cFrame=$("cFrame");
+  let cs={s:1,x:0,y:0}, cBase=1, cBlob=null, cUrl=null, cPinch=null, cPan=null, cLastTap=0;
+  const cPts=new Map();
+  function cBox(){ const r=cFrame.getBoundingClientRect(); return {W:r.width,H:r.height}; }
+  function cClamp(){
+    const {W,H}=cBox(), ds=cBase*cs.s;
+    const mx=Math.max(0,(cImg.naturalWidth*ds-W)/2), my=Math.max(0,(cImg.naturalHeight*ds-H)/2);
+    cs.x=Math.min(mx,Math.max(-mx,cs.x)); cs.y=Math.min(my,Math.max(-my,cs.y));
+  }
+  function cApply(){ cClamp(); cImg.style.transform=`translate(-50%,-50%) translate(${cs.x}px,${cs.y}px) scale(${cs.s})`; }
+  function cSet(scale){ cs.s=Math.min(6,Math.max(1,scale)); cApply(); }
+  function cLayout(){
+    const {W,H}=cBox(); const w=cImg.naturalWidth, h=cImg.naturalHeight; if(!w||!h||!W) return;
+    cBase=Math.max(W/w,H/h); cImg.style.width=(w*cBase)+"px"; cImg.style.height=(h*cBase)+"px"; cApply();
+  }
+  function openCropper(blob){
+    cBlob=blob; cs={s:1,x:0,y:0};
+    if(cUrl) URL.revokeObjectURL(cUrl); cUrl=URL.createObjectURL(blob);
+    $("cropper").hidden=false; document.body.style.overflow="hidden";
+    cImg.onload=()=>requestAnimationFrame(cLayout); cImg.src=cUrl;
+  }
+  function closeCropper(){ $("cropper").hidden=true; document.body.style.overflow=""; cPts.clear(); cPinch=null; cPan=null; $("fPhoto").value=""; }
+  window.addEventListener("resize", ()=>{ if(!$("cropper").hidden) cLayout(); });
+  $("cIn").addEventListener("click", ()=>cSet(cs.s*1.4));
+  $("cOut").addEventListener("click", ()=>cSet(cs.s/1.4));
+  $("cCancel").addEventListener("click", closeCropper);
+  $("cSkip").addEventListener("click", ()=>{ usePhoto(cBlob); closeCropper(); });
+  $("cOk").addEventListener("click", ()=>{
+    const {W,H}=cBox(), ds=cBase*cs.s, w=cImg.naturalWidth, h=cImg.naturalHeight;
+    const left=W/2+cs.x-w*ds/2, top=H/2+cs.y-h*ds/2;
+    const sx=-left/ds, sy=-top/ds, sw=W/ds, sh=H/ds;
+    const outW=Math.round(Math.min(1080,sw)), outH=Math.round(outW*H/W);
+    const c=document.createElement("canvas"); c.width=outW; c.height=outH;
+    c.getContext("2d").drawImage(cImg,sx,sy,sw,sh,0,0,outW,outH);
+    c.toBlob(b=>{ usePhoto(b||cBlob); closeCropper(); },"image/jpeg",0.85);
   });
+  cFrame.addEventListener("pointerdown", e=>{
+    try{ cFrame.setPointerCapture(e.pointerId); }catch(_){}
+    cPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(cPts.size===2){ const [a,b]=[...cPts.values()]; cPinch={d:Math.hypot(a.x-b.x,a.y-b.y)||1, s:cs.s}; cPan=null; }
+    else if(cPts.size===1){
+      cPan={x:e.clientX-cs.x, y:e.clientY-cs.y};
+      const now=Date.now(); if(now-cLastTap<300){ cSet(cs.s>1?1:2); cLastTap=0; } else cLastTap=now;
+    }
+  });
+  cFrame.addEventListener("pointermove", e=>{
+    if(!cPts.has(e.pointerId)) return;
+    cPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(cPts.size===2 && cPinch){ const [a,b]=[...cPts.values()]; cSet(cPinch.s*Math.hypot(a.x-b.x,a.y-b.y)/cPinch.d); }
+    else if(cPts.size===1 && cPan){ cs.x=e.clientX-cPan.x; cs.y=e.clientY-cPan.y; cApply(); }
+  });
+  const cEnd=e=>{
+    cPts.delete(e.pointerId); if(cPts.size<2) cPinch=null;
+    if(cPts.size===1){ const p=[...cPts.values()][0]; cPan={x:p.x-cs.x, y:p.y-cs.y}; }
+    if(cPts.size===0) cPan=null;
+  };
+  cFrame.addEventListener("pointerup", cEnd); cFrame.addEventListener("pointercancel", cEnd);
+  cFrame.addEventListener("wheel", e=>{ e.preventDefault(); cSet(cs.s*(e.deltaY<0?1.12:1/1.12)); }, {passive:false});
 
   function clearForm(){
     editingId=null; pendingBlob=null;
@@ -655,7 +734,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
   $("vOut").addEventListener("click", ()=>vSet(vs.s/1.5));
   $("vReset").addEventListener("click", ()=>vSet(1));
   $("vClose").addEventListener("click", closeViewer);
-  document.addEventListener("keydown", e=>{ if(e.key==="Escape" && !$("viewer").hidden) closeViewer(); });
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape" && !$("viewer").hidden) closeViewer(); if(e.key==="Escape" && !$("cropper").hidden) closeCropper(); });
   vStage.addEventListener("pointerdown", e=>{
     try{ vStage.setPointerCapture(e.pointerId); }catch(_){}
     pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
