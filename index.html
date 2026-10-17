@@ -4,37 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ソウル仕入れ伝票</title>
-<meta name="theme-color" content="#1f2a44">
+<meta name="theme-color" content="#111317">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="仕入れ伝票">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=BIZ+UDGothic:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap">
 <style>
-/* Layout: a pad of carbon-copy purchase slips. Header = slip pad cover with budget meter; want list = buyer's order sheet; each purchase = one torn-off slip. */
+/* Layout: a pad of purchase slips. Header = cover with totals; want list = order sheet; each purchase = one slip. Calm dark, single theme. */
 :root{
-  --paper:#eef2f6;        /* 複写伝票の青み */
-  --sheet:#ffffff;
-  --ink:#1f2a44;          /* 藍インク */
-  --ink-soft:#5b6680;
-  --rule:#c9d3e0;
-  --stamp:#c8323c;        /* 検印の朱 */
-  --stamp-bg:#fbe9ea;
-  --ok:#2f7a55;
-  --font-display:"Dela Gothic One","Zen Kaku Gothic New",system-ui,sans-serif;
-  --font-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
-  --font-data:"BIZ UDGothic","Zen Kaku Gothic New",ui-monospace,monospace;
+  --paper:#111317;        /* 背景 */
+  --sheet:#1a1d23;        /* カード面 */
+  --head:#22262e;         /* 見出し帯 */
+  --ink:#e7e9ec;
+  --ink-soft:#9097a1;
+  --rule:#2e333c;
+  --stamp:#d4897a;        /* 落ち着いた朱 */
+  --stamp-bg:#2e2220;
+  --ok:#8cc3a5;
+  --font-display:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --font-body:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --font-data:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  color-scheme:dark;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --paper:#141a26;--sheet:#1c2433;--ink:#e3e8f2;--ink-soft:#97a2ba;--rule:#334058;
-  --stamp:#ff6b72;--stamp-bg:#3a1f25;--ok:#6fd0a0;color-scheme:dark}}
-:root[data-theme="dark"]{
-  --paper:#141a26;--sheet:#1c2433;--ink:#e3e8f2;--ink-soft:#97a2ba;--rule:#334058;
-  --stamp:#ff6b72;--stamp-bg:#3a1f25;--ok:#6fd0a0;color-scheme:dark}
 
 body{background:var(--paper);color:var(--ink);font-family:var(--font-body);line-height:1.6;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:calc(20px + env(safe-area-inset-top,0px)) calc(48px + env(safe-area-inset-bottom,0px));margin:0;font-size:14px;-webkit-text-size-adjust:100%}
@@ -46,14 +42,14 @@ button,input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--stamp);outline-offset:2px}
 
 /* cover */
-.cover{background:var(--sheet);border:1.5px solid var(--ink);border-radius:4px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:14px}
+.cover{background:var(--sheet);border:1px solid var(--rule);border-radius:4px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:14px}
 .cover-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .eyebrow{font-size:11px;letter-spacing:.18em;color:var(--ink-soft)}
-h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px);line-height:1.15;margin:2px 0 0;text-wrap:balance}
+h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30px);line-height:1.2;letter-spacing:.02em;margin:2px 0 0;text-wrap:balance}
 .shopname{font-weight:700;font-size:15px;margin-top:4px;word-break:break-word}
 .shopname .ph{color:var(--ink-soft);font-weight:400}
 .iconbtn{border:1px solid var(--rule);background:transparent;border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
-.meter{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px dashed var(--rule);padding-top:12px;gap:8px}
+.meter{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));row-gap:12px;border-top:1px dashed var(--rule);padding-top:12px;gap:8px}
 .meter div{min-width:0}
 .meter .lbl{font-size:11px;color:var(--ink-soft);letter-spacing:.08em}
 .meter .val{font-family:var(--font-data);font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
@@ -90,10 +86,10 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
 .hint[data-ok]{color:var(--ink-soft)}
 
 /* want list (発注書) */
-.wants{background:var(--sheet);border:1.5px dashed var(--ink);border-radius:4px}
+.wants{background:var(--sheet);border:1px solid var(--rule);border-radius:4px}
 .wants summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:12px 16px}
 .wants summary::-webkit-details-marker{display:none}
-.wants summary b{font-family:var(--font-display);font-weight:400;font-size:16px;letter-spacing:.06em}
+.wants summary b{font-family:var(--font-display);font-weight:600;font-size:16px;letter-spacing:.06em}
 .wants summary span{font-family:var(--font-data);font-size:12px;color:var(--ink-soft);white-space:nowrap}
 .wants summary span::after{content:" ▾"}
 .wants:not([open]) summary span::after{content:" ▸"}
@@ -121,9 +117,9 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
 .wempty{font-size:13px;color:var(--ink-soft)}
 
 /* form */
-.form{background:var(--sheet);border:1.5px solid var(--ink);border-radius:4px;overflow:hidden}
-.form-head{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:var(--ink);color:var(--sheet)}
-.form-head b{font-family:var(--font-display);font-weight:400;font-size:16px;letter-spacing:.06em}
+.form{background:var(--sheet);border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+.form-head{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:var(--head);color:var(--ink);border-bottom:1px solid var(--rule)}
+.form-head b{font-family:var(--font-display);font-weight:600;font-size:16px;letter-spacing:.06em}
 .form-head span{font-family:var(--font-data);font-size:12px}
 .form-body{padding:16px;display:grid;gap:12px}
 .field{display:grid;gap:4px;min-width:0}
@@ -189,6 +185,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
 .empty{border:1.5px dashed var(--rule);border-radius:4px;padding:28px 18px;text-align:center;color:var(--ink-soft);font-size:14px}
 .empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
 .notice{font-size:13px;color:var(--ink-soft);text-align:center}
+@media (min-width:520px){.meter{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
 @media (max-width:380px){.slip{grid-template-columns:76px minmax(0,1fr)}.slip .pic{width:76px;height:96px}.row2{grid-template-columns:1fr}.wadd{grid-template-columns:minmax(0,1fr) auto}.wadd .btn{grid-column:1/-1}}
 </style>
@@ -230,6 +227,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     </div>
     <div class="meter">
       <div><div class="lbl">仕入れ合計</div><div class="val" id="mTotal">₩0</div><div class="sub" id="mTotalY"></div></div>
+      <div><div class="lbl">アイテム数</div><div class="val" id="mCount">0点</div><div class="sub" id="mCountSub"></div></div>
       <button type="button" class="tile" id="budgetTile" aria-label="予算を入力"><div class="lbl">予算 ✎</div><div class="val" id="mBudget">—</div><div class="sub" id="mBudgetY"></div></button>
       <div><div class="lbl">残り</div><div class="val" id="mLeft">—</div><div class="sub" id="mLeftY"></div></div>
     </div>
@@ -488,6 +486,7 @@ h1{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,7vw,34px
     const nMine = slips.filter(s=>s.forMe!==false).length, nGift = slips.length-nMine;
     $("mMine").textContent = won(mine); $("mMineY").textContent = `${nMine}点 ${yen(mine)}`;
     $("mGift").textContent = won(gift); $("mGiftY").textContent = `${nGift}点 ${yen(gift)}`;
+    $("mCount").textContent = `${slips.length}点`; $("mCountSub").textContent = `自分用${nMine}・あげる用${nGift}`;
   }
   $("budgetTile").addEventListener("click", ()=>{
     const st=$("settings"); if(st.hidden) $("toggleSettings").click();
