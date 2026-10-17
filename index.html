@@ -23,7 +23,7 @@
   --ink:#1c2027;
   --ink-soft:#6a717c;
   --rule:#e2e5ea;
-  --stamp:#d9701e;        /* オレンジ（検品・あげる用・残高オーバーなど） */
+  --stamp:#d9701e;        /* オレンジ（検品・委託・残高オーバーなど） */
   --stamp-bg:#fdf1e6;
   --ok:#2f7a55;
   --font-display:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
@@ -233,8 +233,8 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
     </div>
     <div class="bar" aria-hidden="true"><i id="mBar"></i></div>
     <div class="split">
-      <div><div class="lbl">自分用</div><div class="val" id="mMine">₩0</div><div class="sub" id="mMineY"></div></div>
-      <div><div class="lbl">🎁 あげる用</div><div class="val" id="mGift">₩0</div><div class="sub" id="mGiftY"></div></div>
+      <div><div class="lbl">自店仕入れ</div><div class="val" id="mMine">₩0</div><div class="sub" id="mMineY"></div></div>
+      <div><div class="lbl">🎁 委託</div><div class="val" id="mGift">₩0</div><div class="sub" id="mGiftY"></div></div>
     </div>
     <div class="cats" id="mCats"></div>
     <p class="hint" id="backupHint" hidden></p>
@@ -274,7 +274,7 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
           <select id="fCat"><option>服</option><option>靴</option><option>アクセ</option><option>バッグ</option><option>その他</option></select></div>
       </div>
       <div>
-        <label class="mine"><input type="checkbox" id="fMine" checked> 自分用（あげるものはチェックを外す）</label>
+        <label class="mine"><input type="checkbox" id="fMine" checked> 自店仕入れ（委託＝人に頼まれた・あげるものはチェックを外す）</label>
       </div>
       <div class="field"><label for="fPop">イチオシ・メモ</label><textarea id="fPop" maxlength="300" rows="3" placeholder="例:肩の落ち方が今季いちばん。サイズM、色違いでベージュもあり"></textarea></div>
       <div class="msg" id="formMsg" role="status"></div>
@@ -486,7 +486,7 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
     const nMine = slips.filter(s=>s.forMe!==false).length, nGift = slips.length-nMine;
     $("mMine").textContent = won(mine); $("mMineY").textContent = `${nMine}点 ${yen(mine)}`;
     $("mGift").textContent = won(gift); $("mGiftY").textContent = `${nGift}点 ${yen(gift)}`;
-    $("mCount").textContent = `${slips.length}点`; $("mCountSub").textContent = `自分用${nMine}・あげる用${nGift}`;
+    $("mCount").textContent = `${slips.length}点`; $("mCountSub").textContent = `自店仕入れ${nMine}・委託${nGift}`;
   }
   $("budgetTile").addEventListener("click", ()=>{
     const st=$("settings"); if(st.hidden) $("toggleSettings").click();
@@ -511,7 +511,7 @@ h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,6.5vw,30
       <article class="slip" data-id="${esc(s.id)}">
         <div class="pic">${s.photoId && photoUrls[s.photoId]?`<img src="${photoUrls[s.photoId]}" alt="${esc(s.item)}">`:"写真なし"}</div>
         <div class="body">
-          <div class="no"><span>No. ${pad(s.no)}</span><span>${esc(s.cat)}</span><span>${fmtDate(s.createdAt)}</span>${s.forMe===false?'<span class="giftmark">🎁 あげる用</span>':''}</div>
+          <div class="no"><span>No. ${pad(s.no)}</span><span>${esc(s.cat)}</span><span>${fmtDate(s.createdAt)}</span>${s.forMe===false?'<span class="giftmark">🎁 委託</span>':''}</div>
           <div class="item">${esc(s.item)}</div>
           ${s.shop?`<div class="shop">${esc(s.shop)}</div>`:""}
           ${s.pop?`<div class="pop">${esc(s.pop)}</div>`:""}

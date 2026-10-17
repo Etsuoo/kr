@@ -1,5 +1,5 @@
 // Offline support: keep the app shell and fonts cached so the slip pad opens without signal.
-const CACHE = "denpyo-v11";
+const CACHE = "denpyo-v12";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
